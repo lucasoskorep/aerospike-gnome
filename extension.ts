@@ -2,7 +2,7 @@ import GLib from 'gi://GLib';
 import St from 'gi://St';
 import Meta from 'gi://Meta';
 import {Extension, ExtensionMetadata} from 'resource:///org/gnome/shell/extensions/extension.js';
-import type Mtk from '@girs/mtk-16';
+
 // import Gio from 'gi://Gio';
 // import cairo from "cairo";
 // import Shell from 'gi://Shell';
