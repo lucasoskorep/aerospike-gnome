@@ -15,7 +15,6 @@
   ],
   "files": [
     "extension.ts",
-    "winGroup.ts",
-    "prefs.ts"
+    "winGroup.ts"
   ],
 }
