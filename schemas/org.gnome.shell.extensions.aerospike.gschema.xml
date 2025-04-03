@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+    <schema id="org.gnome.shell.extensions.aerospike" path="/org/gnome/shell/extensions/aerospike/">
+        <key name="tiling-type" type="s">
+            <default>"Horizontal"</default>
+            <summary>Type of tiling</summary>
+            <description>The type of tiling provided by aerospace</description>
+        </key>
+    </schema>
+</schemalist>
