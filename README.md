@@ -1,1 +1,1 @@
-# Pretty Borders
+# Aerospike Gnome (Tiling Window Manager)

@@ -1,0 +1,28 @@
+{
+  "name": "aerospike",
+  "version": "0.2.0",
+  "description": "A TypeScript GNOME Extension for Pretty Borders",
+  "type": "module",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/lucasoskorep/aerospike"
+  },
+  "author": "Lucas Oskorep <lucas.oskorep@gmail.com>",
+  "license": "LGPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/example/my-extension/issues"
+  },
+  "homepage": "https://github.com/example/my-extension#readme",
+  "sideEffects": false,
+  "devDependencies": {
+    "@girs/gjs": "^4.0.0-beta.23",
+    "@girs/gnome-shell": "^48.0.1",
+    "eslint": "^9.23.0",
+    "eslint-plugin-jsdoc": "^50.6.9",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "@girs/mtk-16": "16.0.0-4.0.0-beta.23"
+  }
+}
