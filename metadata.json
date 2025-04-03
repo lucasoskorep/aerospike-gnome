@@ -1,0 +1,9 @@
+{
+  "name": "aerospike",
+  "description": "Adds pretty rainbow or static borders to the active and inactive windows",
+  "uuid": "aerospike@lucaso.io",
+  "shell-version": [
+    "47",
+    "48"
+  ]
+}
