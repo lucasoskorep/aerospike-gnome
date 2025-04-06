@@ -1,9 +1,11 @@
 {
   "name": "aerospike",
-  "description": "Adds pretty rainbow or static borders to the active and inactive windows",
+  "description": "I3 Like Tiling Window Manager for Gnome",
   "uuid": "aerospike@lucaso.io",
+  "settings-schema": "org.gnome.shell.extensions.aerospike",
   "shell-version": [
-    "47",
     "48"
-  ]
+  ],
+  "gettext-domain": "aerospike@lucaso.io",
+  "url": "https://gitea.chaosdev.gay/lucasoskorep/aerospike@lucaso.io"
 }
