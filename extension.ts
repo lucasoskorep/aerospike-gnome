@@ -2,8 +2,11 @@ import GLib from 'gi://GLib';
 import St from 'gi://St';
 import Meta from 'gi://Meta';
 import {Extension, ExtensionMetadata} from 'resource:///org/gnome/shell/extensions/extension.js';
+import Mtk from "@girs/mtk-16";
 
-// import Gio from 'gi://Gio';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import Gio from 'gi://Gio';
+import Shell from 'gi://Shell';
 // import cairo from "cairo";
 // import Shell from 'gi://Shell';
 // import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -18,8 +21,11 @@ type Signal = {
     id: number;
 }
 
-export default class aerospike extends Extension {
 
+
+export default class aerospike extends Extension {
+    settings: Gio.Settings;
+    keyBindings: Map<string, number>;
     borderActor: St.Widget | null;
     focusWindowSignals: any[];
     lastFocusedWindow: Meta.Window | null;
@@ -30,6 +36,8 @@ export default class aerospike extends Extension {
 
     constructor(metadata: ExtensionMetadata) {
         super(metadata);
+        this.settings = this.getSettings('org.gnome.shell.extensions.aerospike');
+        this.keyBindings = new Map();
         // Initialize instance variables
         this.borderActor = null;
         this.focusWindowSignals = [];
@@ -43,8 +51,7 @@ export default class aerospike extends Extension {
 
     enable() {
         console.log("STARTING AEROSPIKE!")
-
-        // this._captureExistingWindows();
+        this._captureExistingWindows();
         // Connect window signals
         this._windowCreateId = global.display.connect(
             'window-created',
@@ -52,6 +59,111 @@ export default class aerospike extends Extension {
                 this.handleWindowCreated(window);
             }
         );
+        this.bindSettings();
+    }
+
+
+    private bindSettings() {
+        // Monitor settings changes
+        this.settings.connect('changed::keybinding-1', () => {
+            log(`Keybinding 1 changed to: ${this.settings.get_strv('keybinding-1')}`);
+            this.refreshKeybinding('keybinding-1');
+        });
+
+        this.settings.connect('changed::keybinding-2', () => {
+            log(`Keybinding 2 changed to: ${this.settings.get_strv('keybinding-2')}`);
+            this.refreshKeybinding('keybinding-2');
+        });
+
+        this.settings.connect('changed::keybinding-3', () => {
+            log(`Keybinding 3 changed to: ${this.settings.get_strv('keybinding-3')}`);
+            this.refreshKeybinding('keybinding-3');
+        });
+
+        this.settings.connect('changed::keybinding-4', () => {
+            log(`Keybinding 4 changed to: ${this.settings.get_strv('keybinding-4')}`);
+            this.refreshKeybinding('keybinding-4');
+        });
+
+        this.settings.connect('changed::dropdown-option', () => {
+            log(`Dropdown option changed to: ${this.settings.get_string('dropdown-option')}`);
+        });
+
+        this.settings.connect('changed::color-selection', () => {
+            log(`Color selection changed to: ${this.settings.get_string('color-selection')}`);
+        });
+    }
+    private refreshKeybinding(settingName: string) {
+        if (this.keyBindings.has(settingName)) {
+            Main.wm.removeKeybinding(settingName);
+            this.keyBindings.delete(settingName);
+        }
+
+        switch (settingName) {
+            case 'keybinding-1':
+                this.bindKeybinding('keybinding-1', () => {
+                    log('Keybinding 1 was pressed!');
+                });
+                break;
+            case 'keybinding-2':
+                this.bindKeybinding('keybinding-2', () => {
+                    log('Keybinding 2 was pressed!');
+                });
+                break;
+            case 'keybinding-3':
+                this.bindKeybinding('keybinding-3', () => {
+                    log('Keybinding 3 was pressed!');
+                });
+                break;
+            case 'keybinding-4':
+                this.bindKeybinding('keybinding-4', () => {
+                    log('Keybinding 4 was pressed!');
+                });
+                break;
+        }
+    }
+
+    private removeKeybindings() {
+        this.keyBindings.forEach((_, key) => {
+            Main.wm.removeKeybinding(key);
+        });
+        this.keyBindings.clear();
+    }
+
+    private setupKeybindings() {
+        this.bindKeybinding('keybinding-1', () => {
+            log('Keybinding 1 was pressed!');
+        });
+
+        this.bindKeybinding('keybinding-2', () => {
+            log('Keybinding 2 was pressed!');
+        });
+
+        this.bindKeybinding('keybinding-3', () => {
+            log('Keybinding 3 was pressed!');
+        });
+
+        this.bindKeybinding('keybinding-4', () => {
+            log('Keybinding 4 was pressed!');
+        });
+    }
+
+    private bindKeybinding(settingName: string, callback: () => void) {
+        const keyBindingSettings = this.settings.get_strv(settingName);
+
+        if (keyBindingSettings.length === 0 || keyBindingSettings[0] === '') {
+            return;
+        }
+
+        const keyBindingAction = Main.wm.addKeybinding(
+            settingName,
+            this.settings,
+            Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
+            Shell.ActionMode.NORMAL,
+            callback
+        );
+
+        this.keyBindings.set(settingName, keyBindingAction);
     }
 
     handleWindowCreated(window: Meta.Window) {
@@ -69,19 +181,19 @@ export default class aerospike extends Extension {
         this._addWindow(window);
     }
 
-    // _captureExistingWindows() {
-    //     console.log("CAPTURING WINDOWS")
-    //     const workspace = global.workspace_manager.get_active_workspace();
-    //     const windows = global.display.get_tab_list(Meta.TabList.NORMAL, workspace);
-    //     console.log("WINDOWS", windows);
-    //     windows.forEach(window => {
-    //         if (this._isWindowTileable(window)) {
-    //             this._addWindow(window);
-    //         }
-    //     });
-    //
-    //     // this._tileWindows();
-    // }
+    _captureExistingWindows() {
+        console.log("CAPTURING WINDOWS")
+        const workspace = global.workspace_manager.get_active_workspace();
+        const windows = global.display.get_tab_list(Meta.TabList.NORMAL, workspace);
+        console.log("WINDOWS", windows);
+        windows.forEach(window => {
+            if (this._isWindowTileable(window)) {
+                this._addWindow(window);
+            }
+        });
+
+        this._tileWindows();
+    }
 
     getUsableMonitorSpace(window: Meta.Window) {
         // Get the current workspace
@@ -101,21 +213,70 @@ export default class aerospike extends Extension {
         };
     }
 
+
+    // Function to safely resize a window after it's ready
+    safelyResizeWindow(win: Meta.Window, x: number, y: number, width: number, height: number): void {
+        const actor = win.get_compositor_private();
+
+        if (!actor) {
+            console.log("No actor available, can't resize safely yet");
+            return;
+        }
+
+        // Set a flag to track if the resize has been done
+        let resizeDone = false;
+
+        // Connect to the first-frame signal
+        const id = actor.connect('first-frame', () => {
+            // Disconnect the signal handler
+            actor.disconnect(id);
+
+            if (!resizeDone) {
+                resizeDone = true;
+
+                // Add a small delay
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+                    try {
+                        this.resizeWindow(win, x, y, width, height);
+                    } catch (e) {
+                        console.error("Error resizing window:", e);
+                    }
+                    return GLib.SOURCE_REMOVE;
+                });
+            }
+        });
+
+        // Fallback timeout in case the first-frame signal doesn't fire
+        // (for windows that are already mapped)
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+            if (!resizeDone) {
+                resizeDone = true;
+                try {
+                    this.resizeWindow(win, x, y, width, height);
+                } catch (e) {
+                    console.error("Error resizing window (fallback):", e);
+                }
+            }
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
     resizeWindow(win: Meta.Window, x:number, y:number, width:number, height:number) {
         // First, ensure window is not maximized or fullscreen
-        // if (win.get_maximized()) {
-        //     console.log("WINDOW MAXIMIZED")
-        //     win.unmaximize(Meta.MaximizeFlags.BOTH);
-        // }
-        //
-        // if (win.is_fullscreen()) {
-        //     console.log("WINDOW IS FULLSCREEN")
-        //     win.unmake_fullscreen();
-        // }
+        if (win.get_maximized()) {
+            console.log("WINDOW MAXIMIZED")
+            win.unmaximize(Meta.MaximizeFlags.BOTH);
+        }
+
+        if (win.is_fullscreen()) {
+            console.log("WINDOW IS FULLSCREEN")
+            win.unmake_fullscreen();
+        }
         console.log("WINDOW", win.get_window_type(), win.allows_move());
         console.log("MONITOR INFO", this.getUsableMonitorSpace(win));
         console.log("NEW_SIZE", x, y, width, height);
-        win.move_resize_frame(false, 50, 50, 300, 300);
+        // win.move_resize_frame(false, 50, 50, 300, 300);
+        win.move_resize_frame(false, x, y, width, height);
         console.log("RESIZED WINDOW", win.get_frame_rect().height, win.get_frame_rect().width, win.get_frame_rect().x, win.get_frame_rect().y);
     }
 
@@ -131,18 +292,18 @@ export default class aerospike extends Extension {
         //     act.disconnect(id);
         // });
 
-        // const destroyId = window.connect('unmanaging', () => {
-        //     console.log("REMOVING WINDOW", windowId);
-        //     this._handleWindowClosed(windowId);
-        // });
-        // signals.push({name: 'unmanaging', id: destroyId});
+        const destroyId = window.connect('unmanaging', () => {
+            console.log("REMOVING WINDOW", windowId);
+            this._handleWindowClosed(windowId);
+        });
+        signals.push({name: 'unmanaging', id: destroyId});
 
-        // const focusId = window.connect('notify::has-focus', () => {
-        //     if (window.has_focus()) {
-        //         this._activeWindowId = windowId;
-        //     }
-        // });
-        // signals.push({name: 'notify::has-focus', id: focusId});
+        const focusId = window.connect('notify::has-focus', () => {
+            if (window.has_focus()) {
+                this._activeWindowId = windowId;
+            }
+        });
+        signals.push({name: 'notify::has-focus', id: focusId});
 
         // Add window to managed windows
         this._windows.set(windowId, {
@@ -159,7 +320,7 @@ export default class aerospike extends Extension {
     }
 
     _handleWindowClosed(windowId: number) {
-
+        print("closing window", windowId);
         const windowData = this._windows.get(windowId);
         if (!windowData) {
             return;
@@ -205,12 +366,12 @@ export default class aerospike extends Extension {
 
         // Get all windows for current workspace
         const windows = Array.from(this._windows.values())
-            // .filter(({window}) => {
-            //
-            //     if (window != null) {
-            //         return window.get_workspace() === workspace;
-            //     }
-            // })
+            .filter(({window}) => {
+
+                if (window != null) {
+                    return window.get_workspace() === workspace;
+                }
+            })
             .map(({window}) => window);
 
         if (windows.length === 0) {
@@ -232,7 +393,7 @@ export default class aerospike extends Extension {
                 height: workArea.height
             };
             if (window != null) {
-                this.resizeWindow(window, rect.x, rect.y, rect.width, rect.height);
+                this.safelyResizeWindow(window, rect.x, rect.y, rect.width, rect.height);
             }
         });
     }

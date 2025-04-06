@@ -1,10 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
     <schema id="org.gnome.shell.extensions.aerospike" path="/org/gnome/shell/extensions/aerospike/">
-        <key name="tiling-type" type="s">
-            <default>"Horizontal"</default>
-            <summary>Type of tiling</summary>
-            <description>The type of tiling provided by aerospace</description>
+        <key name="keybinding-1" type="as">
+            <default><![CDATA[['<Super>1']]]></default>
+            <summary>Keybinding for action 1</summary>
+            <description>Keyboard shortcut for triggering action 1</description>
+        </key>
+
+        <key name="keybinding-2" type="as">
+            <default><![CDATA[['<Super>2']]]></default>
+            <summary>Keybinding for action 2</summary>
+            <description>Keyboard shortcut for triggering action 2</description>
+        </key>
+
+        <key name="keybinding-3" type="as">
+            <default><![CDATA[['<Super>3']]]></default>
+            <summary>Keybinding for action 3</summary>
+            <description>Keyboard shortcut for triggering action 3</description>
+        </key>
+
+        <key name="keybinding-4" type="as">
+            <default><![CDATA[['<Super>4']]]></default>
+            <summary>Keybinding for action 4</summary>
+            <description>Keyboard shortcut for triggering action 4</description>
+        </key>
+
+        <key name="dropdown-option" type="s">
+            <default>'option1'</default>
+            <summary>Dropdown selection</summary>
+            <description>Option selected from the dropdown menu</description>
+        </key>
+
+        <key name="color-selection" type="s">
+            <default>'rgb(255,0,0)'</default>
+            <summary>Selected color</summary>
+            <description>Color chosen from the color picker</description>
         </key>
     </schema>
 </schemalist>
