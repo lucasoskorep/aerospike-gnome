@@ -32,6 +32,9 @@ run:
 
 install-and-run: install run
 
+live-debug:
+    journalctl /usr/bin/gnome-shell -f -o cat
+
 #pack: build
 #    gnome-extensions pack dist \
 #        --force \
