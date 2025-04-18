@@ -16,7 +16,6 @@
     "src/**/*"
   ],
   "files": [
-    "extension.ts",
-    "winGroup.ts"
+    "extension.ts"
   ],
 }
