@@ -10,12 +10,20 @@ export type Signal = {
 }
 
 export class WindowWrapper {
-    _window: Meta.Window;
-    _signals: Signal[];
+    readonly _window: Meta.Window;
+    readonly _signals: Signal[];
 
     constructor(window: Meta.Window) {
         this._window = window;
         this._signals = [];
+    }
+
+    getWindow(): Meta.Window {
+        return this._window;
+    }
+
+    getWindowId(): number {
+        return this._window.get_id();
     }
 
     connectWindowSignals(
@@ -26,9 +34,9 @@ export class WindowWrapper {
 
 
         // Handle window destruction
-        const destroyId = this._window.connect('unmanaging', () => {
+        const destroyId = this._window.connect('unmanaging', window => {
             Logger.log("REMOVING WINDOW", windowId);
-            windowManager.handleWindowClosed(windowId)
+            windowManager.handleWindowClosed(this)
         });
         this._signals.push({name: 'unmanaging', id: destroyId});
 
@@ -82,11 +90,11 @@ export class WindowWrapper {
                 // If this was the active window, find a new one
                 windowManager.syncActiveWindow()
                 // Retile remaining windows
-                windowManager._tileWindows();
+                windowManager._tileMonitors();
 
             } else if (!this._window.minimized) {
                 Logger.log(`Window unminimized: ${windowId}`);
-                windowManager.addWindow(this._window);
+                // windowManager.addWindow(this._window);
 
             }
         });

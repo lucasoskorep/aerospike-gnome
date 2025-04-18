@@ -3,48 +3,54 @@ import Meta from "gi://Meta";
 import {WindowWrapper} from './window.js';
 import Mtk from "@girs/mtk-16";
 import {Logger} from "./utils/logger.js";
+import MonitorManager from "./monitor.js";
 
 
 export interface IWindowManager {
     _activeWindowId: number | null;
 
-    _tileWindows(): void;
+    // addWindow(window: Meta.Window): void;
 
-    addWindow(window: Meta.Window): void;
+    handleWindowClosed(windowId: WindowWrapper): void;
 
-    handleWindowClosed(windowId: number): void;
+    _tileMonitors(): void;
 
     // removeFromTree(window: Meta.Window): void;
     syncActiveWindow(): number | null;
 }
 
+const _UNUSED_MONITOR_ID = -1
 export default class WindowManager implements IWindowManager {
-    _focusSignal: number | null;
     _displaySignals: number[];
-    _windowCreateId: number | null;
-    _windows: Map<number, WindowWrapper>;
     _activeWindowId: number | null;
+    _grabbedWindowMonitor: number;
+    _monitors: Map<number, MonitorManager>;
 
     constructor() {
-        this._focusSignal = null;
-        this._windowCreateId = null;
         this._displaySignals = [];
-        this._windows = new Map<number, WindowWrapper>();
         this._activeWindowId = null;
+        this._grabbedWindowMonitor = _UNUSED_MONITOR_ID;
+        this._monitors = new Map<number, MonitorManager>();
     }
 
     public enable(): void {
         Logger.log("Starting Aerospike Window Manager");
         this.captureExistingWindows();
         // Connect window signals
-        this._windowCreateId = global.display.connect(
-            'window-created',
-            (display, window) => {
-                this.handleWindowCreated(display, window);
-            }
-        );
         this.instantiateDisplaySignals()
+
+        const mon_count = global.display.get_n_monitors();
+        for (let i = 0; i < mon_count; i++) {
+            this._monitors.set(i, new MonitorManager(i));
+        }
     }
+
+    public disable(): void {
+        Logger.log("DISABLED AEROSPIKE WINDOW MANAGER!")
+        // Disconnect the focus signal and remove any existing borders
+        this.disconnectDisplaySignals();
+    }
+
 
     instantiateDisplaySignals(): void {
         this._displaySignals.push(
@@ -53,30 +59,64 @@ export default class WindowManager implements IWindowManager {
             }),
             global.display.connect("grab-op-end", (display, window, op) => {
                 this.handleGrabOpEnd(display, window, op)
-            })
+            }),
+            global.display.connect("window-entered-monitor", (display, monitor, window) => {
+                Logger.log("WINDOW HAS ENTERED NEW MONITOR!")
+            }),
+            global.display.connect('window-created', (display, window) => {
+                this.handleWindowCreated(display, window);
+            }),
+            global.display.connect("showing-desktop-changed", () => {
+                Logger.log("SHOWING DESKTOP CHANGED");
+            }),
+            global.display.connect("workareas-changed", () => {
+                Logger.log("WORK AREAS CHANGED");
+            }),
+            global.display.connect("in-fullscreen-changed", () => {
+                Logger.log("IN FULL SCREEN CHANGED");
+            }),
         )
+    }
 
+    disconnectDisplaySignals(): void {
+        this._displaySignals.forEach((signal) => {
+            global.disconnect(signal)
+        })
     }
 
     handleGrabOpBegin(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
         Logger.log("Grab Op Start");
         Logger.log(display, window, op)
         Logger.log(window.get_monitor())
+        this._grabbedWindowMonitor = window.get_monitor();
     }
 
     handleGrabOpEnd(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
-        Logger.log("Grab Op End ");
-        Logger.log(display, window, op)
-        this._tileWindows();
-    }
+        Logger.log("Grab Op End ", op);
+        Logger.log("primary display", display.get_primary_monitor())
+        var rect = window.get_frame_rect()
+        Logger.info("Release Location", window.get_monitor(), rect.x, rect.y, rect.width, rect.height)
+        this._tileMonitors();
+        const old_mon_id = this._grabbedWindowMonitor;
+        const new_mon_id = window.get_monitor();
 
-    public disable(): void {
-        Logger.log("DISABLED AEROSPIKE WINDOW MANAGER!")
-        // Disconnect the focus signal and remove any existing borders
-        if (this._focusSignal) {
-            global.display.disconnect(this._focusSignal);
-            this._focusSignal = null;
+        Logger.info("MONITOR MATCH", old_mon_id !== new_mon_id);
+        if (old_mon_id !== new_mon_id) {
+            Logger.trace("MOVING MONITOR");
+            let old_mon = this._monitors.get(old_mon_id);
+            let new_mon = this._monitors.get(new_mon_id);
+            if (old_mon === undefined || new_mon === undefined) {
+                return;
+            }
+            let wrapped = old_mon.getWindow(window.get_id())
+            if (wrapped === undefined) {
+                wrapped = new WindowWrapper(window)
+            } else {
+                old_mon.removeWindow(window.get_id())
+            }
+            new_mon.addWindow(wrapped)
         }
+        Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
     }
 
     public captureExistingWindows() {
@@ -86,11 +126,11 @@ export default class WindowManager implements IWindowManager {
         Logger.log("WINDOWS", windows);
         windows.forEach(window => {
             if (this._isWindowTileable(window)) {
-                this.addWindow(window);
+                this.addWindowToMonitor(window);
             }
         });
 
-        this._tileWindows();
+        this._tileMonitors();
     }
 
 
@@ -104,46 +144,31 @@ export default class WindowManager implements IWindowManager {
         if (!actor) {
             return;
         }
-        this.addWindow(window);
+        this.addWindowToMonitor(window);
     }
 
 
     /**
      * Handle window closed event
      */
-    handleWindowClosed(windowId: number): void {
-        Logger.log("closing window", windowId);
-        const window = this._windows.get(windowId);
-        if (!window) {
-            return;
-        }
-        window.disconnectWindowSignals()
-        // Remove from managed windows
-        this._windows.delete(windowId);
+    handleWindowClosed(window: WindowWrapper): void {
 
+        window.disconnectWindowSignals()
+        const mon_id = window._window.get_monitor();
+        this._monitors.get(mon_id)?.removeWindow(window.getWindowId());
+
+        // Remove from managed windows
         this.syncActiveWindow();
         // Retile remaining windows
-        this._tileWindows();
+        this._tileMonitors();
     }
 
 
-    public addWindow(window: Meta.Window) {
-        const windowId = window.get_id();
-
-        Logger.log("ADDING WINDOW", window);
+    public addWindowToMonitor(window: Meta.Window) {
 
         var wrapper = new WindowWrapper(window)
         wrapper.connectWindowSignals(this)
-
-        // Add window to managed windows
-        this._windows.set(windowId, wrapper);
-
-        // If this is the first window, make it the active one
-        if (this._windows.size === 1 || window.has_focus()) {
-            this._activeWindowId = windowId;
-        }
-
-        this._tileWindows();
+        this._monitors.get(window.get_monitor())?.addWindow(wrapper)
     }
 
     // public UnmanageWindow(window: Meta.Window) {
@@ -156,6 +181,29 @@ export default class WindowManager implements IWindowManager {
     //         window,
     //     })
     // }
+
+    _tileMonitors(): void {
+        for (const monitor of this._monitors.values()) {
+            monitor._tileWindows()
+        }
+    }
+
+    _isWindowTileable(window: Meta.Window) {
+        if (!window || !window.get_compositor_private()) {
+            return false;
+        }
+
+        const windowType = window.get_window_type();
+        Logger.log("WINDOW TYPE", windowType);
+        // Skip certain types of windows
+        return !window.is_skip_taskbar() &&
+            windowType !== Meta.WindowType.DESKTOP &&
+            windowType !== Meta.WindowType.DOCK &&
+            windowType !== Meta.WindowType.DIALOG &&
+            windowType !== Meta.WindowType.MODAL_DIALOG &&
+            windowType !== Meta.WindowType.UTILITY &&
+            windowType !== Meta.WindowType.MENU;
+    }
 
     /**
      * Synchronizes the active window with GNOME's currently active window
@@ -210,65 +258,5 @@ export default class WindowManager implements IWindowManager {
         return null;
     }
 
-    _isWindowTileable(window: Meta.Window) {
-        if (!window || !window.get_compositor_private()) {
-            return false;
-        }
-
-        const windowType = window.get_window_type();
-        Logger.log("WINDOW TYPE", windowType);
-        // Skip certain types of windows
-        return !window.is_skip_taskbar() &&
-            windowType !== Meta.WindowType.DESKTOP &&
-            windowType !== Meta.WindowType.DOCK &&
-            windowType !== Meta.WindowType.DIALOG &&
-            windowType !== Meta.WindowType.MODAL_DIALOG &&
-            windowType !== Meta.WindowType.UTILITY &&
-            windowType !== Meta.WindowType.MENU;
-    }
-
-    _tileWindows() {
-        Logger.log("TILING WINDOWS")
-        const workspace = global.workspace_manager.get_active_workspace();
-        const workArea = workspace.get_work_area_for_monitor(
-            global.display.get_primary_monitor()
-        );
-        Logger.log("Workspace", workspace);
-        Logger.log("WorkArea", workArea);
-
-        // Get all windows for current workspace
-        const windows = Array.from(this._windows.values())
-            .filter(({_window}) => {
-
-                if (_window != null) {
-                    return _window.get_workspace() === workspace;
-                }
-            })
-            .map(x => x);
-
-        if (windows.length === 0) {
-            return;
-        }
-        this._tileHorizontally(windows, workArea)
-
-    }
-
-
-    _tileHorizontally(windows: (WindowWrapper | null)[], workArea: Mtk.Rectangle) {
-        const windowWidth = Math.floor(workArea.width / windows.length);
-
-        windows.forEach((window, index) => {
-            const x = workArea.x + (index * windowWidth);
-            const rect = {
-                x: x,
-                y: workArea.y,
-                width: windowWidth,
-                height: workArea.height
-            };
-            if (window != null) {
-                window.safelyResizeWindow(rect.x, rect.y, rect.width, rect.height);
-            }
-        });
-    }
 
 }
