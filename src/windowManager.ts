@@ -1,6 +1,9 @@
 import Meta from "gi://Meta";
+import Gio from "gi://Gio";
+import GLib from "gi://GLib";
 
 import {WindowWrapper} from './window.js';
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import Mtk from "@girs/mtk-16";
 import {Logger} from "./utils/logger.js";
 import MonitorManager from "./monitor.js";
@@ -22,15 +25,30 @@ export interface IWindowManager {
 const _UNUSED_MONITOR_ID = -1
 export default class WindowManager implements IWindowManager {
     _displaySignals: number[];
+    _windowManagerSignals: number[];
+    _workspaceManagerSignals: number[];
+    _shieldScreenSignals: number[];
+    _overviewSignals: number[];
     _activeWindowId: number | null;
     _grabbedWindowMonitor: number;
     _monitors: Map<number, MonitorManager>;
+    _sessionProxy: Gio.DBusProxy | null;
+    _lockedSignalId: number | null;
+    _isScreenLocked: boolean;
 
     constructor() {
         this._displaySignals = [];
+        this._windowManagerSignals = [];
+        this._workspaceManagerSignals = [];
+        this._overviewSignals = [];
+        this._shieldScreenSignals = [];
         this._activeWindowId = null;
         this._grabbedWindowMonitor = _UNUSED_MONITOR_ID;
         this._monitors = new Map<number, MonitorManager>();
+        this._sessionProxy = null;
+        this._lockedSignalId = null;
+        this._isScreenLocked = false;
+
     }
 
     public enable(): void {
@@ -49,6 +67,13 @@ export default class WindowManager implements IWindowManager {
         Logger.log("DISABLED AEROSPIKE WINDOW MANAGER!")
         // Disconnect the focus signal and remove any existing borders
         this.disconnectDisplaySignals();
+        this.removeAllWindows();
+    }
+
+    removeAllWindows(): void {
+        this._monitors.forEach((monitor: MonitorManager) => {
+            monitor.removeAllWindows();
+        })
     }
 
 
@@ -76,10 +101,83 @@ export default class WindowManager implements IWindowManager {
                 Logger.log("IN FULL SCREEN CHANGED");
             }),
         )
+
+
+        this._windowManagerSignals = [
+            global.window_manager.connect("minimize", (_source, window) => {
+                Logger.log("MINIMIZING WINDOW")
+            }),
+            global.window_manager.connect("unminimize", (_source, window) => {
+                Logger.log("WINDOW UNMINIMIZED");
+            }),
+            global.window_manager.connect("show-tile-preview", (_, _metaWindow, _rect, _num) => {
+                Logger.log("SHOW TITLE PREVIEW!")
+            }),
+        ];
+
+
+        this._workspaceManagerSignals = [
+            global.workspace_manager.connect("showing-desktop-changed", () => {
+                Logger.log("SHOWING DESKTOP CHANGED AT WORKSPACE LEVEL");
+            }),
+            global.workspace_manager.connect("workspace-added", (_, wsIndex) => {
+                Logger.log("WORKSPACE ADDED");
+            }),
+            global.workspace_manager.connect("workspace-removed", (_, wsIndex) => {
+                Logger.log("WORKSPACE REMOVED");
+            }),
+            global.workspace_manager.connect("active-workspace-changed", () => {
+                Logger.log("Active workspace-changed");
+            }),
+        ];
+
+
+        this._overviewSignals = [
+            Main.overview.connect("hiding", () => {
+                // this.fromOverview = true;
+                Logger.log("HIDING OVERVIEW")
+                const eventObj = {
+                    name: "focus-after-overview",
+                    callback: () => {
+                        // const focusNodeWindow = this.tree.findNode(this.focusMetaWindow);
+                        // this.updateStackedFocus(focusNodeWindow);
+                        // this.updateTabbedFocus(focusNodeWindow);
+                        // this.movePointerWith(focusNodeWindow);
+                        Logger.log("FOCUSING AFTER OVERVIEW");
+                    },
+                };
+                // this.queueEvent(eventObj);
+            }),
+            Main.overview.connect("showing", () => {
+                // this.toOverview = true;
+                Logger.log("SHOWING OVERVIEW");
+            }),
+        ];
+
+        // Main.screenShield;
+
+        // Handler for lock event
+        this._shieldScreenSignals.push(Main.screenShield.connect('lock-screen', () => {
+                console.log('Session locked at:', new Date().toISOString());
+            }), Main.screenShield.connect('unlock-screen', () => {
+                console.log('Session unlocked at:', new Date().toISOString());
+            })
+        );
+
+        // Handler for unlock event
+
+        // this._signalsBound = true;
+
     }
 
     disconnectDisplaySignals(): void {
         this._displaySignals.forEach((signal) => {
+            global.disconnect(signal)
+        })
+        this._windowManagerSignals.forEach((signal) => {
+            global.disconnect(signal)
+        })
+        this._workspaceManagerSignals.forEach((signal) => {
             global.disconnect(signal)
         })
     }
@@ -165,7 +263,6 @@ export default class WindowManager implements IWindowManager {
 
 
     public addWindowToMonitor(window: Meta.Window) {
-
         var wrapper = new WindowWrapper(window)
         wrapper.connectWindowSignals(this)
         this._monitors.get(window.get_monitor())?.addWindow(wrapper)

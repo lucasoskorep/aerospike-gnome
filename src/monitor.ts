@@ -28,6 +28,9 @@ export default class MonitorManager {
         this._tileWindows()
     }
 
+    removeAllWindows(): void {
+        this._windows.clear()
+    }
 
     _tileWindows() {
         Logger.log("TILING WINDOWS ON MONITOR", this._id)
