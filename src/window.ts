@@ -165,7 +165,7 @@ export class WindowWrapper {
                     } catch (e) {
                         console.error("Error resizing window:", e);
                     }
-                    return GLib.SOURCE_feaREMOVE;
+                    return GLib.SOURCE_REMOVE;
                 });
             }
         });
