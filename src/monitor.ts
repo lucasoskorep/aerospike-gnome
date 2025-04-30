@@ -1,15 +1,20 @@
 import {WindowWrapper} from "./window.js";
 import {Logger} from "./utils/logger.js";
 import Mtk from "@girs/mtk-16";
+import Meta from "gi://Meta";
+
 
 export default class MonitorManager {
 
     _id: number;
     _windows: Map<number, WindowWrapper>;
+    _minimized: Map<number, WindowWrapper>;
 
 
     constructor(monitorId: number) {
         this._windows = new Map<number, WindowWrapper>();
+        this._minimized = new Map<number, WindowWrapper>();
+
         this._id = monitorId;
     }
 
@@ -26,6 +31,18 @@ export default class MonitorManager {
     removeWindow(win_id: number): void {
         this._windows.delete(win_id)
         this._tileWindows()
+    }
+
+    minimizeWindow(winWrap: WindowWrapper): void {
+        this._windows.delete(winWrap.getWindowId())
+        this._minimized.set(winWrap.getWindowId(), winWrap)
+    }
+
+    unminimizeWindow(winWrap: WindowWrapper): void {
+        if (this._minimized.has(winWrap.getWindowId())) {
+            this._windows.set(winWrap.getWindowId(), winWrap);
+            this._minimized.delete(winWrap.getWindowId());
+        }
     }
 
     removeAllWindows(): void {

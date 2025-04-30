@@ -9,13 +9,17 @@ export type Signal = {
     id: number;
 }
 
+type WindowMinimizedHandler = (window: WindowWrapper) => void;
+
 export class WindowWrapper {
     readonly _window: Meta.Window;
+    readonly _windowMinimizedHandler: WindowMinimizedHandler;
     readonly _signals: Signal[];
 
-    constructor(window: Meta.Window) {
+    constructor(window: Meta.Window, winMinimized: WindowMinimizedHandler) {
         this._window = window;
         this._signals = [];
+        this._windowMinimizedHandler = winMinimized;
     }
 
     getWindow(): Meta.Window {
@@ -88,13 +92,13 @@ export class WindowWrapper {
                 // Remove window from managed windows temporarily
                 // windowManager.removeFromTree(this._window);
                 // If this was the active window, find a new one
-                windowManager.syncActiveWindow()
                 // Retile remaining windows
-                windowManager._tileMonitors();
+                windowManager.handleWindowMinimized(this);
 
             } else if (!this._window.minimized) {
                 Logger.log(`Window unminimized: ${windowId}`);
                 // windowManager.addWindow(this._window);
+                windowManager.handleWindowUnminimized(this);
 
             }
         });
@@ -138,12 +142,12 @@ export class WindowWrapper {
             Logger.log("WINDOW IS FULLSCREEN")
             this._window.unmake_fullscreen();
         }
-        Logger.log("WINDOW", this._window.get_window_type(), this._window.allows_move());
-        Logger.log("MONITOR INFO", getUsableMonitorSpace(this._window));
-        Logger.log("NEW_SIZE", x, y, width, height);
+        // Logger.log("WINDOW", this._window.get_window_type(), this._window.allows_move());
+        // Logger.log("MONITOR INFO", getUsableMonitorSpace(this._window));
+        // Logger.log("NEW_SIZE", x, y, width, height);
         // win.move_resize_frame(false, 50, 50, 300, 300);
         this._window.move_resize_frame(false, x, y, width, height);
-        Logger.log("RESIZED WINDOW", this._window.get_frame_rect().height, this._window.get_frame_rect().width, this._window.get_frame_rect().x, this._window.get_frame_rect().y);
+        // Logger.log("RESIZED WINDOW", this._window.get_frame_rect().height, this._window.get_frame_rect().width, this._window.get_frame_rect().x, this._window.get_frame_rect().y);
     }
 
     safelyResizeWindow(x: number, y: number, width: number, height: number): void {
