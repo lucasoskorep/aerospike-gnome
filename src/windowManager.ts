@@ -14,9 +14,10 @@ export interface IWindowManager {
 
     // addWindow(window: Meta.Window): void;
 
-    handleWindowClosed(windowId: WindowWrapper): void;
+    handleWindowClosed(winWrap: WindowWrapper): void;
+    handleWindowMinimized(winWrap: WindowWrapper): void;
+    handleWindowUnminimized(winWrap: WindowWrapper): void;
 
-    _tileMonitors(): void;
 
     // removeFromTree(window: Meta.Window): void;
     syncActiveWindow(): number | null;
@@ -104,12 +105,12 @@ export default class WindowManager implements IWindowManager {
 
 
         this._windowManagerSignals = [
-            global.window_manager.connect("minimize", (_source, window) => {
-                Logger.log("MINIMIZING WINDOW")
-            }),
-            global.window_manager.connect("unminimize", (_source, window) => {
-                Logger.log("WINDOW UNMINIMIZED");
-            }),
+            // global.window_manager.connect("minimize", (_source, window) => {
+            //     Logger.log("MINIMIZING WINDOW")
+            // }),
+            // global.window_manager.connect("unminimize", (_source, window) => {
+            //     Logger.log("WINDOW UNMINIMIZED");
+            // }),
             global.window_manager.connect("show-tile-preview", (_, _metaWindow, _rect, _num) => {
                 Logger.log("SHOW TITLE PREVIEW!")
             }),
@@ -208,13 +209,30 @@ export default class WindowManager implements IWindowManager {
             }
             let wrapped = old_mon.getWindow(window.get_id())
             if (wrapped === undefined) {
-                wrapped = new WindowWrapper(window)
+                wrapped = new WindowWrapper(window, this.handleWindowMinimized);
             } else {
                 old_mon.removeWindow(window.get_id())
             }
             new_mon.addWindow(wrapped)
         }
         Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
+    }
+
+    public handleWindowMinimized(winWrap: WindowWrapper): void {
+        Logger.warn("WARNING MINIMIZING WINDOW");
+        Logger.log("WARNING MINIMIZED", winWrap);
+        const monitor_id = winWrap.getWindow().get_monitor()
+        Logger.log("WARNING MINIMIZED", monitor_id);
+        Logger.warn("WARNING MINIMIZED", this._monitors);
+        this._monitors.get(monitor_id)?.minimizeWindow(winWrap);
+        this._tileMonitors()
+    }
+
+    public handleWindowUnminimized(winWrap: WindowWrapper): void {
+        Logger.log("WINDOW UNMINIMIZED");
+        const monitor_id = winWrap.getWindow().get_monitor()
+        this._monitors.get(monitor_id)?.unminimizeWindow(winWrap);
+        this._tileMonitors()
     }
 
     public captureExistingWindows() {
@@ -263,7 +281,7 @@ export default class WindowManager implements IWindowManager {
 
 
     public addWindowToMonitor(window: Meta.Window) {
-        var wrapper = new WindowWrapper(window)
+        var wrapper = new WindowWrapper(window, this.handleWindowMinimized)
         wrapper.connectWindowSignals(this)
         this._monitors.get(window.get_monitor())?.addWindow(wrapper)
     }
