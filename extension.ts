@@ -26,6 +26,7 @@ export default class aerospike extends Extension {
 
     disable() {
         this.windowManager.disable()
+        this.removeKeybindings()
     }
 
 

@@ -45,6 +45,13 @@ export default class MonitorManager {
         }
     }
 
+    disconnectSignals(): void {
+        this._windows.forEach((window) => {
+                window.disconnectWindowSignals();
+            }
+        )
+    }
+
     removeAllWindows(): void {
         this._windows.clear()
     }
@@ -72,7 +79,6 @@ export default class MonitorManager {
             return;
         }
         this._tileHorizontally(windows, workArea)
-
     }
 
 

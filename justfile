@@ -33,7 +33,7 @@ run:
 install-and-run: install run
 
 live-debug:
-    journalctl /usr/bin/gnome-shell -f -o cat
+    journalctl /usr/bin/gnome-shell -f -o cat | tee debug.log
 
 #pack: build
 #    gnome-extensions pack dist \

@@ -7,6 +7,7 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import Mtk from "@girs/mtk-16";
 import {Logger} from "./utils/logger.js";
 import MonitorManager from "./monitor.js";
+import {MessageTray} from "@girs/gnome-shell/ui/messageTray";
 
 
 export interface IWindowManager {
@@ -23,13 +24,14 @@ export interface IWindowManager {
     syncActiveWindow(): number | null;
 }
 
+
 const _UNUSED_MONITOR_ID = -1
 export default class WindowManager implements IWindowManager {
     _displaySignals: number[];
     _windowManagerSignals: number[];
     _workspaceManagerSignals: number[];
-    _shieldScreenSignals: number[];
     _overviewSignals: number[];
+
     _activeWindowId: number | null;
     _grabbedWindowMonitor: number;
     _monitors: Map<number, MonitorManager>;
@@ -42,41 +44,27 @@ export default class WindowManager implements IWindowManager {
         this._windowManagerSignals = [];
         this._workspaceManagerSignals = [];
         this._overviewSignals = [];
-        this._shieldScreenSignals = [];
         this._activeWindowId = null;
         this._grabbedWindowMonitor = _UNUSED_MONITOR_ID;
         this._monitors = new Map<number, MonitorManager>();
         this._sessionProxy = null;
         this._lockedSignalId = null;
-        this._isScreenLocked = false;
+        this._isScreenLocked = false; // Initialize to unlocked state
 
     }
 
     public enable(): void {
         Logger.log("Starting Aerospike Window Manager");
-        this.captureExistingWindows();
         // Connect window signals
-        this.instantiateDisplaySignals()
+        this.instantiateDisplaySignals();
 
         const mon_count = global.display.get_n_monitors();
         for (let i = 0; i < mon_count; i++) {
             this._monitors.set(i, new MonitorManager(i));
         }
-    }
 
-    public disable(): void {
-        Logger.log("DISABLED AEROSPIKE WINDOW MANAGER!")
-        // Disconnect the focus signal and remove any existing borders
-        this.disconnectDisplaySignals();
-        this.removeAllWindows();
+        this.captureExistingWindows();
     }
-
-    removeAllWindows(): void {
-        this._monitors.forEach((monitor: MonitorManager) => {
-            monitor.removeAllWindows();
-        })
-    }
-
 
     instantiateDisplaySignals(): void {
         this._displaySignals.push(
@@ -95,7 +83,7 @@ export default class WindowManager implements IWindowManager {
             global.display.connect("showing-desktop-changed", () => {
                 Logger.log("SHOWING DESKTOP CHANGED");
             }),
-            global.display.connect("workareas-changed", () => {
+            global.display.connect("workareas-changed", (display) => {
                 Logger.log("WORK AREAS CHANGED");
             }),
             global.display.connect("in-fullscreen-changed", () => {
@@ -103,19 +91,11 @@ export default class WindowManager implements IWindowManager {
             }),
         )
 
-
         this._windowManagerSignals = [
-            // global.window_manager.connect("minimize", (_source, window) => {
-            //     Logger.log("MINIMIZING WINDOW")
-            // }),
-            // global.window_manager.connect("unminimize", (_source, window) => {
-            //     Logger.log("WINDOW UNMINIMIZED");
-            // }),
             global.window_manager.connect("show-tile-preview", (_, _metaWindow, _rect, _num) => {
                 Logger.log("SHOW TITLE PREVIEW!")
             }),
         ];
-
 
         this._workspaceManagerSignals = [
             global.workspace_manager.connect("showing-desktop-changed", () => {
@@ -131,7 +111,6 @@ export default class WindowManager implements IWindowManager {
                 Logger.log("Active workspace-changed");
             }),
         ];
-
 
         this._overviewSignals = [
             Main.overview.connect("hiding", () => {
@@ -155,33 +134,49 @@ export default class WindowManager implements IWindowManager {
             }),
         ];
 
-        // Main.screenShield;
 
-        // Handler for lock event
-        this._shieldScreenSignals.push(Main.screenShield.connect('lock-screen', () => {
-                console.log('Session locked at:', new Date().toISOString());
-            }), Main.screenShield.connect('unlock-screen', () => {
-                console.log('Session unlocked at:', new Date().toISOString());
-            })
-        );
+    }
 
-        // Handler for unlock event
+    public disable(): void {
+        Logger.log("DISABLED AEROSPIKE WINDOW MANAGER!")
+        // Disconnect the focus signal and remove any existing borders
+        this.disconnectSignals();
+        this.removeAllWindows();
+    }
 
-        // this._signalsBound = true;
+    removeAllWindows(): void {
+        this._monitors.forEach((monitor: MonitorManager) => {
+            monitor.removeAllWindows();
+        })
+    }
 
+
+    disconnectSignals(): void {
+        this.disconnectDisplaySignals();
+        this.disconnectMonitorSignals();
+    }
+
+    disconnectMonitorSignals(): void {
+        this._monitors.forEach((monitor: MonitorManager) => {
+            monitor.disconnectSignals();
+        })
     }
 
     disconnectDisplaySignals(): void {
         this._displaySignals.forEach((signal) => {
-            global.disconnect(signal)
+            global.display.disconnect(signal)
         })
         this._windowManagerSignals.forEach((signal) => {
-            global.disconnect(signal)
+            global.window_manager.disconnect(signal)
         })
         this._workspaceManagerSignals.forEach((signal) => {
-            global.disconnect(signal)
+            global.workspace_manager.disconnect(signal)
+        })
+        this._overviewSignals.forEach((signal) => {
+            Main.overview.disconnect(signal)
         })
     }
+
 
     handleGrabOpBegin(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
         Logger.log("Grab Op Start");
@@ -195,7 +190,6 @@ export default class WindowManager implements IWindowManager {
         Logger.log("primary display", display.get_primary_monitor())
         var rect = window.get_frame_rect()
         Logger.info("Release Location", window.get_monitor(), rect.x, rect.y, rect.width, rect.height)
-        this._tileMonitors();
         const old_mon_id = this._grabbedWindowMonitor;
         const new_mon_id = window.get_monitor();
 
@@ -215,6 +209,7 @@ export default class WindowManager implements IWindowManager {
             }
             new_mon.addWindow(wrapped)
         }
+        this._tileMonitors();
         Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
     }
 
@@ -286,17 +281,6 @@ export default class WindowManager implements IWindowManager {
         this._monitors.get(window.get_monitor())?.addWindow(wrapper)
     }
 
-    // public UnmanageWindow(window: Meta.Window) {
-    //     this._windows.delete(window.get_id());
-    //     this._unmanagedWindows.add(window.get_id())
-    // }
-    //
-    // public ManageWindow(window: Meta.Window) {
-    //     this._windows.set(window.get_id(), {
-    //         window,
-    //     })
-    // }
-
     _tileMonitors(): void {
         for (const monitor of this._monitors.values()) {
             monitor._tileWindows()
@@ -329,47 +313,6 @@ export default class WindowManager implements IWindowManager {
      * @returns The window ID of the active window, or null if no window is active
      */
     public syncActiveWindow(): number | null {
-        // // Get the active workspace
-        // const workspace = global.workspace_manager.get_active_workspace();
-        //
-        // // Check if there is an active window
-        // const activeWindow = global.display.get_focus_window();
-        //
-        // if (!activeWindow) {
-        //     Logger.log("No active window found in GNOME");
-        //     this._activeWindowId = null;
-        //     return null;
-        // }
-        //
-        // // Get the window ID
-        // const windowId = activeWindow.get_id();
-        //
-        // // Check if this window is being managed by our extension
-        // if (this._windows.has(windowId)) {
-        //     Logger.log(`Setting active window to ${windowId}`);
-        //     this._activeWindowId = windowId;
-        //     return windowId;
-        // } else {
-        //     Logger.log(`Window ${windowId} is not managed by this extension`);
-        //
-        //     // Try to find a managed window on the current workspace to make active
-        //     const managedWindows = Array.from(this._windows.entries())
-        //         .filter(([_, wrapper]) =>
-        //             wrapper.window && wrapper.window.get_workspace() === workspace);
-        //
-        //     if (managedWindows.length > 0) {
-        //         // Take the first managed window on this workspace
-        //         const firstWindowId = managedWindows[0][0];
-        //         Logger.log(`Using managed window ${firstWindowId} as active instead`);
-        //         this._activeWindowId = firstWindowId;
-        //         return firstWindowId;
-        //     }
-        //
-        //     // No managed windows on this workspace
-        //     Logger.log("No managed windows found on the active workspace");
-        //     this._activeWindowId = null;
-        //     return null;
-        // }
         return null;
     }
 
