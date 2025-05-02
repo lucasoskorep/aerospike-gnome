@@ -1,8 +1,12 @@
 import Meta from 'gi://Meta';
-import GLib from "gi://GLib";
+import St from "gi://St";
 import Clutter from "gi://Clutter";
+import GObject from "gi://GObject";
+import GLib from "gi://GLib";
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import {IWindowManager} from "./windowManager.js";
 import {Logger} from "./utils/logger.js";
+import MaximizeFlags = Meta.MaximizeFlags;
 
 export type Signal = {
     name: string;
@@ -36,7 +40,6 @@ export class WindowWrapper {
 
         const windowId = this._window.get_id();
 
-
         // Handle window destruction
         const destroyId = this._window.connect('unmanaging', window => {
             Logger.log("REMOVING WINDOW", windowId);
@@ -52,52 +55,15 @@ export class WindowWrapper {
         });
         this._signals.push({name: 'notify::has-focus', id: focusId});
 
-        // Track window movement using position-changed signal
-        let lastPositionChangeTime = 0;
-        let dragInProgress = false;
-        
-        // const positionChangedId = this._window.connect('position-changed', window => {
-        //     Logger.log("position-changed", window.get_id());
-        //     Logger.log(window.get_monitor())
-        //     // const currentTime = Date.now();
-        //     // const [x, y, _] = global.get_pointer();
-        //     //
-        //     // // If this is the first move or it's been a while since the last move, consider it the start of a drag
-        //     // if (!dragInProgress) {
-        //     //     dragInProgress = true;
-        //     //     Logger.log(`Window drag started for window ${windowId}. Mouse position: ${x}, ${y}`);
-        //     // }
-        //     //
-        //     // // Update the time of the last position change
-        //     // lastPositionChangeTime = currentTime;
-        //     //
-        //     // // Set a timeout to detect when dragging stops (when position changes stop coming in)
-        //     // GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
-        //     //     const timeSinceLastMove = Date.now() - lastPositionChangeTime;
-        //     //     // If it's been more than 200ms since the last move and we were dragging, consider the drag ended
-        //     //     if (timeSinceLastMove >= 200 && dragInProgress) {
-        //     //         dragInProgress = false;
-        //     //         const [endX, endY, _] = global.get_pointer();
-        //     //         Logger.log(`Window drag ended for window ${windowId}. Mouse position: ${endX}, ${endY}`);
-        //     //     }
-        //     //     return GLib.SOURCE_REMOVE; // Remove the timeout
-        //     // });
-        // });
-        // this._signals.push({name: 'position-changed', id: positionChangedId});
 
         // Handle minimization
         const minimizeId = this._window.connect('notify::minimized', () => {
             if (this._window.minimized) {
                 Logger.log(`Window minimized: ${windowId}`);
-                // Remove window from managed windows temporarily
-                // windowManager.removeFromTree(this._window);
-                // If this was the active window, find a new one
-                // Retile remaining windows
                 windowManager.handleWindowMinimized(this);
 
             } else if (!this._window.minimized) {
                 Logger.log(`Window unminimized: ${windowId}`);
-                // windowManager.addWindow(this._window);
                 windowManager.handleWindowUnminimized(this);
 
             }
@@ -125,107 +91,56 @@ export class WindowWrapper {
                         this._window.disconnect(signal.id);
                     }
                 } catch (e) {
-                    // Window might already be gone
+                    Logger.warn("error disconnecting signal", signal, e);
                 }
             });
         }
     }
 
     resizeWindow(x: number, y: number, width: number, height: number) {
-        // First, ensure window is not maximized or fullscreen
-        if (this._window.get_maximized()) {
-            Logger.log("WINDOW MAXIMIZED")
-            this._window.unmaximize(Meta.MaximizeFlags.BOTH);
-        }
+        Logger.info(this._window.allows_move())
+        Logger.info(this._window.allows_resize())
 
-        if (this._window.is_fullscreen()) {
-            Logger.log("WINDOW IS FULLSCREEN")
-            this._window.unmake_fullscreen();
-        }
-        // Logger.log("WINDOW", this._window.get_window_type(), this._window.allows_move());
-        // Logger.log("MONITOR INFO", getUsableMonitorSpace(this._window));
-        // Logger.log("NEW_SIZE", x, y, width, height);
-        // win.move_resize_frame(false, 50, 50, 300, 300);
-        this._window.move_resize_frame(false, x, y, width, height);
-        // Logger.log("RESIZED WINDOW", this._window.get_frame_rect().height, this._window.get_frame_rect().width, this._window.get_frame_rect().x, this._window.get_frame_rect().y);
-    }
+        if (this._window.get_maximized() == MaximizeFlags.BOTH || this._window.is_fullscreen() || this._window.is_monitor_sized()) {
+            Logger.info("is monitor sized?", this._window.is_monitor_sized());
+            Logger.info("is monitor sized?", this._window.is_fullscreen());
+            Logger.info("is monitor sized?", this._window.get_maximized());
+            Logger.info("is monitor sized?", this._window.get_maximized() == MaximizeFlags.BOTH);
 
-    safelyResizeWindow(x: number, y: number, width: number, height: number): void {
-        Logger.log("SAFELY RESIZE", x, y, width, height);
-        const actor = this._window.get_compositor_private();
-
-        if (!actor) {
-            Logger.log("No actor available, can't resize safely yet");
+            Logger.info("window is fullscreen or maximized and will not be resized", this._window)
             return;
+            // Logger.log("WINDOW IS FULLSCREEN")
+            // this._window.unmake_fullscreen();
         }
-
-// Set a flag to track if the resize has been done
-        let resizeDone = false;
-
-// Connect to the first-frame signal
-        const id = actor.connect('first-frame', () => {
-            // Disconnect the signal handler
-            actor.disconnect(id);
-
-            if (!resizeDone) {
-                resizeDone = true;
-
-                // Add a small delay
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-                    try {
-                        this.resizeWindow(x, y, width, height);
-                    } catch (e) {
-                        console.error("Error resizing window:", e);
-                    }
-                    return GLib.SOURCE_REMOVE;
-                });
-            }
-        });
-
-// Fallback timeout in case the first-frame signal doesn't fire
-// (for windows that are already mapped)
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-            if (!resizeDone) {
-                resizeDone = true;
-                try {
-                    this.resizeWindow(x, y, width, height);
-                } catch (e) {
-                    console.error("Error resizing window (fallback):", e);
-                }
-            }
-            return GLib.SOURCE_REMOVE;
-        });
+        this._window.move_resize_frame(false, x, y, width, height);
     }
 
-    // if (!this._window) return;
-    // this._window.unmaximize(Meta.MaximizeFlags.HORIZONTAL);
-    // this._window.unmaximize(Meta.MaximizeFlags.VERTICAL);
-    // this._window.unmaximize(Meta.MaximizeFlags.BOTH);
-    //
-    // let windowActor = this._window.get_compositor_private() as Clutter.Actor;
-    // if (!windowActor) return;
-    // windowActor.remove_all_transitions();
-    //
-    // this._window.move_frame(true, x, y);
-    // this._window.move_resize_frame(true, x, y, width, height);
+    // This is meant to be an exact copy of Forge's move function, renamed to maintain your API
+    safelyResizeWindow(x: number, y: number, width: number, height: number): void {
+        // Keep minimal logging 
+        Logger.log("SAFELY RESIZE", x, y, width, height);
+        
+        // Simple early returns like Forge
+        if (!this._window) return;
+        
+        // Skip the this._window.grabbed check since we confirmed it doesn't exist in Meta.Window
+        
+        // Unmaximize in all directions - no try/catch to match Forge
+        this._window.unmaximize(Meta.MaximizeFlags.HORIZONTAL);
+        this._window.unmaximize(Meta.MaximizeFlags.VERTICAL);
+        this._window.unmaximize(Meta.MaximizeFlags.BOTH);
+        
+        // Get actor and return early if not available - no try/catch
+        const windowActor = this._window.get_compositor_private() as Clutter.Actor;
+        if (!windowActor) return;
+        
+        // Remove transitions - no try/catch
+        windowActor.remove_all_transitions();
+        
+        // Move and resize in exact order as Forge - no try/catch 
+        this._window.move_frame(true, x, y);
+        this._window.move_resize_frame(true, x, y, width, height);
+    }
 
 
-}
-
-function getUsableMonitorSpace(window: Meta.Window) {
-    // Get the current workspace
-    const workspace = window.get_workspace();
-
-    // Get the monitor index that this window is on
-    const monitorIndex = window.get_monitor();
-
-    // Get the work area
-    const workArea = workspace.get_work_area_for_monitor(monitorIndex);
-
-    return {
-        x: workArea.x,
-        y: workArea.y,
-        width: workArea.width,
-        height: workArea.height
-    };
 }
