@@ -6,8 +6,9 @@ import {WindowWrapper} from './window.js';
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import Mtk from "@girs/mtk-16";
 import {Logger} from "./utils/logger.js";
-import MonitorManager from "./monitor.js";
+import WindowContainer from "./container.js";
 import {MessageTray} from "@girs/gnome-shell/ui/messageTray";
+import queueEvent, {QueuedEvent} from "./utils/events.js";
 
 
 export interface IWindowManager {
@@ -34,7 +35,7 @@ export default class WindowManager implements IWindowManager {
 
     _activeWindowId: number | null;
     _grabbedWindowMonitor: number;
-    _monitors: Map<number, MonitorManager>;
+    _monitors: Map<number, WindowContainer>;
     _sessionProxy: Gio.DBusProxy | null;
     _lockedSignalId: number | null;
     _isScreenLocked: boolean;
@@ -46,7 +47,7 @@ export default class WindowManager implements IWindowManager {
         this._overviewSignals = [];
         this._activeWindowId = null;
         this._grabbedWindowMonitor = _UNUSED_MONITOR_ID;
-        this._monitors = new Map<number, MonitorManager>();
+        this._monitors = new Map<number, WindowContainer>();
         this._sessionProxy = null;
         this._lockedSignalId = null;
         this._isScreenLocked = false; // Initialize to unlocked state
@@ -60,7 +61,7 @@ export default class WindowManager implements IWindowManager {
 
         const mon_count = global.display.get_n_monitors();
         for (let i = 0; i < mon_count; i++) {
-            this._monitors.set(i, new MonitorManager(i));
+            this._monitors.set(i, new WindowContainer(i));
         }
 
         this.captureExistingWindows();
@@ -116,16 +117,12 @@ export default class WindowManager implements IWindowManager {
             Main.overview.connect("hiding", () => {
                 // this.fromOverview = true;
                 Logger.log("HIDING OVERVIEW")
-                const eventObj = {
-                    name: "focus-after-overview",
-                    callback: () => {
-                        // const focusNodeWindow = this.tree.findNode(this.focusMetaWindow);
-                        // this.updateStackedFocus(focusNodeWindow);
-                        // this.updateTabbedFocus(focusNodeWindow);
-                        // this.movePointerWith(focusNodeWindow);
-                        Logger.log("FOCUSING AFTER OVERVIEW");
-                    },
-                };
+                // const eventObj = {
+                //     name: "focus-after-overview",
+                //     callback: () => {
+                //         Logger.log("FOCUSING AFTER OVERVIEW");
+                //     },
+                // };
                 // this.queueEvent(eventObj);
             }),
             Main.overview.connect("showing", () => {
@@ -145,7 +142,7 @@ export default class WindowManager implements IWindowManager {
     }
 
     removeAllWindows(): void {
-        this._monitors.forEach((monitor: MonitorManager) => {
+        this._monitors.forEach((monitor: WindowContainer) => {
             monitor.removeAllWindows();
         })
     }
@@ -157,7 +154,7 @@ export default class WindowManager implements IWindowManager {
     }
 
     disconnectMonitorSignals(): void {
-        this._monitors.forEach((monitor: MonitorManager) => {
+        this._monitors.forEach((monitor: WindowContainer) => {
             monitor.disconnectSignals();
         })
     }
@@ -251,10 +248,6 @@ export default class WindowManager implements IWindowManager {
             return;
         }
         Logger.log("WINDOW IS TILABLE");
-        const actor = window.get_compositor_private();
-        if (!actor) {
-            return;
-        }
         this.addWindowToMonitor(window);
     }
 
@@ -264,7 +257,7 @@ export default class WindowManager implements IWindowManager {
      */
     handleWindowClosed(window: WindowWrapper): void {
 
-        window.disconnectWindowSignals()
+        // window.disconnectWindowSignals()
         const mon_id = window._window.get_monitor();
         this._monitors.get(mon_id)?.removeWindow(window.getWindowId());
 
@@ -276,18 +269,22 @@ export default class WindowManager implements IWindowManager {
 
 
     public addWindowToMonitor(window: Meta.Window) {
+        Logger.log("ADDING WINDOW TO MONITOR", window, window);
         var wrapper = new WindowWrapper(window, this.handleWindowMinimized)
-        wrapper.connectWindowSignals(this)
+        wrapper.connectWindowSignals(this);
+        // wrapper.connectWindowSignals(this)
         this._monitors.get(window.get_monitor())?.addWindow(wrapper)
     }
 
     _tileMonitors(): void {
+
         for (const monitor of this._monitors.values()) {
             monitor._tileWindows()
         }
     }
 
     _isWindowTileable(window: Meta.Window) {
+
         if (!window || !window.get_compositor_private()) {
             return false;
         }
