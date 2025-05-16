@@ -12,21 +12,64 @@ export default class Monitor {
 
     _id: number;
     _workArea: Rect;
-    // _activeWorkspace: number;
-    // _workspaces: Map<number, WindowContainer>;
+    _workspaces: WindowContainer[] = [];
 
     constructor(monitorId: number) {
         this._id = monitorId;
         const workspace = global.workspace_manager.get_active_workspace();
         this._workArea = workspace.get_work_area_for_monitor(this._id);
-        // this._activeWorkspace = workspace
         Logger.log("CREATING MONITOR", monitorId);
-        const workspaces = global.workspace_manager.get_n_workspaces();
-        Logger.log("WORKSPACE COUNT", workspaces);
-        // this._rootContainer = new WindowContainer(monitorId, this._workArea, );
+        Logger.log("WorkArea", this._workArea.x, this._workArea.y, this._workArea.width, this._workArea.height);
+        const workspaceCount = global.workspace_manager.get_n_workspaces()
+        Logger.log("Workspace Count", workspaceCount);
+        for (let i = 0; i < workspaceCount; i++) {
+            this._workspaces.push(new WindowContainer(monitorId, this._workArea, i));
+        }
     }
 
-    // removeAllWindows(): void {
-    //     for (WindowContainer container of this._workspaces.values()) {}
-    // }
+    disconnectSignals() {
+        for (const container of this._workspaces) {
+            container.disconnectSignals();
+        }
+    }
+
+    removeAllWindows(): void {
+        for (const container of this._workspaces) {
+            container.removeAllWindows();
+        }
+    }
+
+    getWindow(windowId: number): WindowWrapper | undefined {
+        for (const container of this._workspaces) {
+            const win = container.getWindow(windowId);
+            if (win) {
+                return win;
+            }
+        }
+        return undefined;
+    }
+
+    removeWindow(winWrap: WindowWrapper) {
+        const windowId = winWrap.getWindowId();
+        for (const container of this._workspaces) {
+            const win = container.getWindow(windowId);
+            if (win) {
+                container.removeWindow(windowId);
+            }
+        }
+    }
+
+    addWindow(winWrap: WindowWrapper) {
+        const window_workspace = winWrap.getWindow().get_workspace().index();
+        Logger.log("Adding window to workspace",  window_workspace);
+        this._workspaces[window_workspace].addWindow(winWrap);
+    }
+
+    tileWindows(): void {
+        this._workArea = global.workspace_manager.get_active_workspace().get_work_area_for_monitor(this._id);
+        const activeWorkspace = global.workspace_manager.get_active_workspace();
+        this._workspaces[activeWorkspace.index()].move(this._workArea);
+        this._workspaces[activeWorkspace.index()].tileWindows()
+    }
+
 }

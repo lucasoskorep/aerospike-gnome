@@ -43,6 +43,8 @@ export default class WindowManager implements IWindowManager {
     _lockedSignalId: number | null;
     _isScreenLocked: boolean;
 
+    _minimizedItems: Map<number, WindowWrapper>;
+
     constructor() {
         this._displaySignals = [];
         this._windowManagerSignals = [];
@@ -50,10 +52,12 @@ export default class WindowManager implements IWindowManager {
         this._overviewSignals = [];
         this._activeWindowId = null;
         this._grabbedWindowMonitor = _UNUSED_MONITOR_ID;
-        this._monitors = new Map<number, WindowContainer>();
+        this._monitors = new Map<number, Monitor>();
         this._sessionProxy = null;
         this._lockedSignalId = null;
         this._isScreenLocked = false; // Initialize to unlocked state
+
+        this._minimizedItems = new Map<number, WindowWrapper>();
 
     }
 
@@ -84,11 +88,13 @@ export default class WindowManager implements IWindowManager {
             global.display.connect('window-created', (display, window) => {
                 this.handleWindowCreated(display, window);
             }),
+
             global.display.connect("showing-desktop-changed", () => {
                 Logger.log("SHOWING DESKTOP CHANGED");
             }),
             global.display.connect("workareas-changed", (display) => {
-                Logger.log("WORK AREAS CHANGED", display.);
+                Logger.log("WORK AREAS CHANGED", );
+                console.log(display.get_workspace_manager().get_active_workspace_index())
             }),
             global.display.connect("in-fullscreen-changed", () => {
                 Logger.log("IN FULL SCREEN CHANGED");
@@ -146,23 +152,23 @@ export default class WindowManager implements IWindowManager {
     }
 
     removeAllWindows(): void {
-        //TODO: RECONNECT
-        // this._monitors.forEach((monitor: Monitor) => {
-        //     monitor.removeAllWindows();
-        // })
+        this._monitors.forEach((monitor: Monitor) => {
+            monitor.removeAllWindows();
+        })
+        this._minimizedItems.clear();
     }
 
 
     disconnectSignals(): void {
         this.disconnectDisplaySignals();
         this.disconnectMonitorSignals();
+        this.disconnectMinimizedSignals();
     }
 
     disconnectMonitorSignals(): void {
-        //TODO: RECONNECT
-        // this._monitors.forEach((monitor: Monitor) => {
-        //     monitor.disconnectSignals();
-        // })
+        this._monitors.forEach((monitor: Monitor) => {
+            monitor.disconnectSignals();
+        })
     }
 
     disconnectDisplaySignals(): void {
@@ -177,6 +183,12 @@ export default class WindowManager implements IWindowManager {
         })
         this._overviewSignals.forEach((signal) => {
             Main.overview.disconnect(signal)
+        })
+    }
+
+    disconnectMinimizedSignals(): void {
+        this._minimizedItems.forEach((item) => {
+            item.disconnectWindowSignals();
         })
     }
 
@@ -204,15 +216,14 @@ export default class WindowManager implements IWindowManager {
             if (old_mon === undefined || new_mon === undefined) {
                 return;
             }
-            //TODO: RECONNECT
 
-            // let wrapped = old_mon.getWindow(window.get_id())
-            // if (wrapped === undefined) {
-            //     wrapped = new WindowWrapper(window, this.handleWindowMinimized);
-            // } else {
-            //     old_mon.removeWindow(window.get_id())
-            // }
-            // new_mon.addWindow(wrapped)
+            let wrapped = old_mon.getWindow(window.get_id())
+            if (wrapped === undefined) {
+                wrapped = new WindowWrapper(window, this.handleWindowMinimized);
+            } else {
+                old_mon.removeWindow(wrapped)
+            }
+            new_mon.addWindow(wrapped)
         }
         this._tileMonitors();
         Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
@@ -220,20 +231,25 @@ export default class WindowManager implements IWindowManager {
 
     public handleWindowMinimized(winWrap: WindowWrapper): void {
         Logger.warn("WARNING MINIMIZING WINDOW");
-        Logger.log("WARNING MINIMIZED", winWrap);
+        Logger.log("WARNING MINIMIZED", JSON.stringify(winWrap));
         const monitor_id = winWrap.getWindow().get_monitor()
         Logger.log("WARNING MINIMIZED", monitor_id);
         Logger.warn("WARNING MINIMIZED", this._monitors);
-        //TODO: RECONNECT
-        // this._monitors.get(monitor_id)?.minimizeWindow(winWrap);
+
+        this._minimizedItems.set(winWrap.getWindowId(), winWrap);
+        this._monitors.get(monitor_id)?.removeWindow(winWrap);
+
+        Logger.warn("WARNING MINIMIZED ITEMS", JSON.stringify(this._minimizedItems));
         this._tileMonitors()
     }
 
     public handleWindowUnminimized(winWrap: WindowWrapper): void {
         Logger.log("WINDOW UNMINIMIZED");
-        const monitor_id = winWrap.getWindow().get_monitor()
-        //TODO: RECONNECT
-        // this._monitors.get(monitor_id)?.unminimizeWindow(winWrap);
+        Logger.log("WINDOW UNMINIMIZED", winWrap == null);
+        // Logger.log("WINDOW UNMINIMIZED", winWrap);
+        // Logger.log("WINDOW UNMINIMIZED", winWrap.getWindowId());
+        this._minimizedItems.delete(winWrap.getWindowId());
+        this._addWindowWrapperToMonitor(winWrap);
         this._tileMonitors()
     }
 
@@ -267,11 +283,11 @@ export default class WindowManager implements IWindowManager {
      */
     handleWindowClosed(window: WindowWrapper): void {
 
-        // window.disconnectWindowSignals()
         const mon_id = window._window.get_monitor();
-        //TODO: RECONNECT
-        // this._monitors.get(mon_id)?.removeWindow(window.getWindowId());
 
+        this._monitors.get(mon_id)?.removeWindow(window);
+
+        window.disconnectWindowSignals()
         // Remove from managed windows
         this.syncActiveWindow();
         // Retile remaining windows
@@ -284,17 +300,20 @@ export default class WindowManager implements IWindowManager {
         Logger.log("ADDING WINDOW TO MONITOR", window, window);
         var wrapper = new WindowWrapper(window, this.handleWindowMinimized)
         wrapper.connectWindowSignals(this);
-        //TODO: RECONNECT
+        this._addWindowWrapperToMonitor(wrapper);
 
-        // this._monitors.get(window.get_monitor())?.addWindow(wrapper)
+    }
+    _addWindowWrapperToMonitor(winWrap: WindowWrapper) {
+        if (winWrap.getWindow().minimized) {
+            this._minimizedItems.set(winWrap.getWindow().get_id(), winWrap);
+        }
+        this._monitors.get(winWrap.getWindow().get_monitor())?.addWindow(winWrap)
     }
 
     _tileMonitors(): void {
 
         for (const monitor of this._monitors.values()) {
-            //TODO: RECONNECT
-
-            // monitor._tileWindows()
+            monitor.tileWindows()
         }
     }
 

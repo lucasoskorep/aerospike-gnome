@@ -3,16 +3,22 @@ import Clutter from "gi://Clutter";
 import {IWindowManager} from "./windowManager.js";
 import {Logger} from "./utils/logger.js";
 import {Rect} from "./utils/rect.js";
+import WindowContainer from "./container.js";
 
 
 type WindowMinimizedHandler = (window: WindowWrapper) => void;
+type WindowWorkspaceChangedHandler = (window: WindowWrapper) => void;
 
 export class WindowWrapper {
     readonly _window: Meta.Window;
     readonly _windowMinimizedHandler: WindowMinimizedHandler;
+    // readonly _windowWorkspaceChangedHandler: WindowWorkspaceChangedHandler;
     readonly _signals: number[];
 
-    constructor(window: Meta.Window, winMinimized: WindowMinimizedHandler) {
+    constructor(
+        window: Meta.Window,
+        winMinimized: WindowMinimizedHandler
+    ) {
         this._window = window;
         this._signals = [];
         this._windowMinimizedHandler = winMinimized;
@@ -47,16 +53,6 @@ export class WindowWrapper {
 
                 }
             }),
-            this._window.connect(
-                'workspace-changed',
-                (window) => {
-                    const workspace = window.get_workspace();
-                    const workspaceIndex = workspace ? workspace.index() : -1;
-                    console.log(`Window moved to workspace ${workspaceIndex}`);
-                },
-                this
-            );
-            ,
             this._window.connect('notify::has-focus', () => {
                 if (this._window.has_focus()) {
                     windowManager._activeWindowId = windowId;
@@ -68,6 +64,9 @@ export class WindowWrapper {
                 } else {
                     Logger.log(`Window unmaximized: ${windowId}`);
                 }
+            }),
+            this._window.connect("workspace-changed", (_metaWindow) => {
+                Logger.log("WORKSPACE CHANGED FOR WINDOW", this._window.get_id());
             }),
         );
     }
