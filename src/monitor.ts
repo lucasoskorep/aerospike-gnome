@@ -23,7 +23,7 @@ export default class Monitor {
         const workspaceCount = global.workspace_manager.get_n_workspaces()
         Logger.log("Workspace Count", workspaceCount);
         for (let i = 0; i < workspaceCount; i++) {
-            this._workspaces.push(new WindowContainer(monitorId, this._workArea, i));
+            this._workspaces.push(new WindowContainer(this._workArea));
         }
     }
 
@@ -61,7 +61,6 @@ export default class Monitor {
 
     addWindow(winWrap: WindowWrapper) {
         const window_workspace = winWrap.getWindow().get_workspace().index();
-        Logger.log("Adding window to workspace",  window_workspace);
         this._workspaces[window_workspace].addWindow(winWrap);
     }
 
@@ -70,6 +69,18 @@ export default class Monitor {
         const activeWorkspace = global.workspace_manager.get_active_workspace();
         this._workspaces[activeWorkspace.index()].move(this._workArea);
         this._workspaces[activeWorkspace.index()].tileWindows()
+    }
+
+    removeWorkspace(workspaceId: number): void {
+        this._workspaces.splice(workspaceId, 1);
+    }
+
+    addWorkspace(): void {
+        this._workspaces.push(new WindowContainer(this._workArea));
+    }
+
+    itemDragged(item: WindowWrapper, x: number, y: number): void {
+        this._workspaces[item.getWorkspace()].itemDragged(item, x, y);
     }
 
 }
