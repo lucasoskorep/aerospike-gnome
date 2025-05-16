@@ -36,7 +36,7 @@ export class WindowWrapper {
                 Logger.log("REMOVING WINDOW", windowId);
                 windowManager.handleWindowClosed(this)
             }),
-            this._window.connect('notify::minimized', () => {
+            this._window.connect('notify::minimized', (we) => {
                 if (this._window.minimized) {
                     Logger.log(`Window minimized: ${windowId}`);
                     windowManager.handleWindowMinimized(this);
@@ -47,6 +47,16 @@ export class WindowWrapper {
 
                 }
             }),
+            this._window.connect(
+                'workspace-changed',
+                (window) => {
+                    const workspace = window.get_workspace();
+                    const workspaceIndex = workspace ? workspace.index() : -1;
+                    console.log(`Window moved to workspace ${workspaceIndex}`);
+                },
+                this
+            );
+            ,
             this._window.connect('notify::has-focus', () => {
                 if (this._window.has_focus()) {
                     windowManager._activeWindowId = windowId;
