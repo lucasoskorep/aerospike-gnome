@@ -1,116 +1,161 @@
 import {WindowWrapper} from "./window.js";
 import {Logger} from "./utils/logger.js";
-import Mtk from "@girs/mtk-16";
 import Meta from "gi://Meta";
-import GLib from "gi://GLib";
 import queueEvent from "./utils/events.js";
 import {Rect} from "./utils/rect.js";
+
+enum Orientation {
+    HORIZONTAL = 0,
+    VERTICAL = 1,
+}
 
 
 export default class WindowContainer {
 
     _id: number;
-    _windows: Map<number, WindowWrapper>;
-    _minimizedWindows: Map<number, WindowWrapper>;
+    _items: Map<number, WindowWrapper | WindowContainer>;
+    _minimizedItems: Map<number, WindowWrapper>;
+    _workspace: number;
+    _orientation: Orientation = Orientation.HORIZONTAL;
     _workArea: Rect;
 
-    constructor(monitorId: number, workspaceArea: Rect) {
-        this._windows = new Map<number, WindowWrapper>();
-        this._minimizedWindows = new Map<number, WindowWrapper>();
-        const workspace = global.workspace_manager.get_active_workspace();
+    constructor(monitorId: number, workspaceArea: Rect, workspace: number) {
         this._id = monitorId;
-        const _workArea = workspace.get_work_area_for_monitor(
-            this._id
-        );
+        this._workspace = workspace;
+        this._items = new Map<number, WindowWrapper>();
+        this._minimizedItems = new Map<number, WindowWrapper>();
+        this._workArea = workspaceArea;
+    }
+
+    getWorkspace(): number {
+        return this._workspace;
+    }
+
+    move(rect: Rect): void {
+        this._workArea = rect;
+        this._tileWindows();
     }
 
     addWindow(winWrap: WindowWrapper): void {
         // Add window to managed windows
-        this._windows.set(winWrap.getWindowId(), winWrap);
-        queueEvent({
-            name: "tiling-windows",
-            callback: () => {
-                this._tileWindows();
-            }
-        }, 100)
+        if (!winWrap.getWindow().minimized) {
+            this._items.set(winWrap.getWindowId(), winWrap);
+            queueEvent({
+                name: "tiling-windows",
+                callback: () => {
+                    this._tileWindows();
+                }
+            }, 100)
+        } else {
+            this._minimizedItems.set(winWrap.getWindowId(), winWrap);
+        }
     }
 
-    getWindow(win_id: number): WindowWrapper | undefined {
-        return this._windows.get(win_id)
+    getWindow(win_id: number): WindowWrapper | WindowContainer | undefined {
+        return this._items.get(win_id)
     }
 
     removeWindow(win_id: number): void {
-        this._windows.delete(win_id)
-        // TODO: Should there be re-tiling in this function?
+        this._items.delete(win_id)
         this._tileWindows()
     }
 
     minimizeWindow(winWrap: WindowWrapper): void {
-        this._windows.delete(winWrap.getWindowId())
-        this._minimizedWindows.set(winWrap.getWindowId(), winWrap)
+        this._items.delete(winWrap.getWindowId())
+        this._minimizedItems.set(winWrap.getWindowId(), winWrap)
     }
 
     unminimizeWindow(winWrap: WindowWrapper): void {
-        if (this._minimizedWindows.has(winWrap.getWindowId())) {
-            this._windows.set(winWrap.getWindowId(), winWrap);
-            this._minimizedWindows.delete(winWrap.getWindowId());
+        if (this._minimizedItems.has(winWrap.getWindowId())) {
+            this._items.set(winWrap.getWindowId(), winWrap);
+            this._minimizedItems.delete(winWrap.getWindowId());
         }
     }
 
     disconnectSignals(): void {
-        this._windows.forEach((window) => {
-                window.disconnectWindowSignals();
+        this._items.forEach((item) => {
+                if (item instanceof WindowContainer) {
+                    item.disconnectSignals()
+                } else {
+                    item.disconnectWindowSignals();
+                }
             }
         )
     }
 
     removeAllWindows(): void {
-        this._windows.clear()
+        this._items.clear()
     }
 
     _tileWindows() {
         Logger.log("TILING WINDOWS ON MONITOR", this._id)
-        const workspace = global.workspace_manager.get_active_workspace();
-        const workArea = workspace.get_work_area_for_monitor(
-            this._id
-        );
 
-        Logger.log("Workspace", workspace);
-        Logger.log("WorkArea", workArea);
+        Logger.log("Workspace", this._workspace);
+        Logger.log("WorkArea", this._workArea);
 
         // Get all windows for current workspace
+        let tilable = this._getTilableItems();
 
-        let windows = this._getTilableWindows(workspace)
-
-        if (windows.length !== 0) {
-            this._tileHorizontally(windows, workArea)
+        if (tilable.length !== 0) {
+            this._tileHorizontally(tilable, )
         }
         return true
     }
 
-    _getTilableWindows(workspace: Meta.Workspace): WindowWrapper[] {
-
-        return Array.from(this._windows.values())
-            .filter(({_window}) => {
-                Logger.log("TILING WINDOW:", _window.get_id())
-                return _window.get_workspace() === workspace;
-            })
-            .map(x => x);
+    _getTilableItems(): (WindowWrapper|WindowContainer)[] {
+        return Array.from(this._items.values())
     }
 
-    _tileHorizontally(windows: (WindowWrapper)[], workArea: Mtk.Rectangle) {
-        const windowWidth = Math.floor(workArea.width / windows.length);
 
-        windows.forEach((window, index) => {
-            const x = workArea.x + (index * windowWidth);
+    _tileItems(windows: (WindowWrapper|WindowContainer)[]) {
+        if (windows.length === 0){
+            return;
+        }
+        if (this._orientation === Orientation.HORIZONTAL) {
+            this._tileHorizontally(windows);
+        } else {
+            this._tileVertically(windows);
+        }
+    }
+
+    _tileVertically(items: (WindowWrapper|WindowContainer)[]) {
+        const containerHeight = Math.floor(this._workArea.height / items.length);
+
+        items.forEach((item, index) => {
+            const y = this._workArea.y + (index * containerHeight);
+            const rect = {
+                x: this._workArea.x,
+                y: y,
+                width: this._workArea.width,
+                height: containerHeight
+            };
+            if (item != null) {
+                if (item instanceof WindowContainer) {
+                    item.move(rect)
+                } else {
+                    item.safelyResizeWindow(rect);
+                }
+            }
+        });
+    }
+
+    _tileHorizontally(windows: (WindowWrapper|WindowContainer)[]) {
+        const windowWidth = Math.floor(this._workArea.width / windows.length);
+
+        windows.forEach((item, index) => {
+            const x = this._workArea.x + (index * windowWidth);
             const rect = {
                 x: x,
-                y: workArea.y,
+                y: this._workArea.y,
                 width: windowWidth,
-                height: workArea.height
+                height: this._workArea.height
             };
-            if (window != null) {
-                window.safelyResizeWindow(rect);
+            if (item != null) {
+                if (item instanceof WindowContainer) {
+                    item.move(rect)
+                } else {
+                    item.safelyResizeWindow(rect);
+                }
             }
         });
     }
