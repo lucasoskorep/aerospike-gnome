@@ -32,6 +32,18 @@ export class WindowWrapper {
         return this._window.get_id();
     }
 
+    getWorkspace(): number {
+        return this._window.get_workspace().index();
+    }
+
+    getMonitor(): number {
+        return this._window.get_monitor();
+    }
+
+    getRect(): Rect {
+        return this._window.get_frame_rect();
+    }
+
     connectWindowSignals(
         windowManager: IWindowManager,
     ): void {
@@ -67,6 +79,10 @@ export class WindowWrapper {
             }),
             this._window.connect("workspace-changed", (_metaWindow) => {
                 Logger.log("WORKSPACE CHANGED FOR WINDOW", this._window.get_id());
+                windowManager.handleWindowChangedWorkspace(this);
+            }),
+            this._window.connect("position-changed", (_metaWindow) => {
+                windowManager.handleWindowPositionChanged(this);
             }),
         );
     }

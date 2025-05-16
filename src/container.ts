@@ -12,24 +12,18 @@ enum Orientation {
 
 export default class WindowContainer {
 
-    _id: number;
     _tiledItems: (WindowWrapper | WindowContainer)[];
     _tiledWindowLookup: Map<number, WindowWrapper>;
-    _workspace: number;
     _orientation: Orientation = Orientation.HORIZONTAL;
     _workArea: Rect;
 
-    constructor(monitorId: number, workspaceArea: Rect, workspace: number) {
-        this._id = monitorId;
-        this._workspace = workspace;
+    constructor(workspaceArea: Rect,) {
+        // this._id = monitorId;
         this._tiledItems = [];
         this._tiledWindowLookup = new Map<number, WindowWrapper>();
         this._workArea = workspaceArea;
     }
 
-    getWorkspace(): number {
-        return this._workspace;
-    }
 
     move(rect: Rect): void {
         this._workArea = rect;
@@ -108,75 +102,103 @@ export default class WindowContainer {
     }
 
     tileWindows() {
-        Logger.log("TILING WINDOWS ON MONITOR", this._id)
+        Logger.log("TILING WINDOWS IN CONTAINER")
 
-        Logger.log("Workspace", this._workspace);
         Logger.log("WorkArea", this._workArea);
 
-        // Get all windows for current workspace
-        let tilable = this._getTilableItems();
+        // Get all windows for current workspaceArea
+        this._tileItems()
 
-        if (tilable.length !== 0) {
-            this._tileItems(tilable)
-        }
         return true
     }
 
-    _getTilableItems(): (WindowWrapper | WindowContainer)[] {
-        return Array.from(this._tiledItems.values())
-    }
-
-    _tileItems(windows: (WindowWrapper | WindowContainer)[]) {
-        if (windows.length === 0) {
+    _tileItems() {
+        if (this._tiledItems.length === 0) {
             return;
         }
-        if (this._orientation === Orientation.HORIZONTAL) {
-            this._tileHorizontally(windows);
-        } else {
-            this._tileVertically(windows);
-        }
+        const bounds = this.getBounds();
+        this._tiledItems.forEach((item, index) => {
+            const rect = bounds[index];
+            if (item instanceof WindowContainer) {
+                item.move(rect);
+            } else {
+                item.safelyResizeWindow(rect);
+            }
+        })
     }
 
-    _tileVertically(items: (WindowWrapper | WindowContainer)[]) {
-        const containerHeight = Math.floor(this._workArea.height / items.length);
 
-        items.forEach((item, index) => {
+    getBounds(): Rect[] {
+        if (this._orientation === Orientation.HORIZONTAL) {
+            return this.getHorizontalBounds();
+        }
+        return this.getVerticalBounds();
+    }
+
+    getVerticalBounds(): Rect[] {
+        const items = this._tiledItems
+        const containerHeight = Math.floor(this._workArea.height / items.length);
+        return items.map((_, index) => {
             const y = this._workArea.y + (index * containerHeight);
-            const rect = {
+            return {
                 x: this._workArea.x,
                 y: y,
                 width: this._workArea.width,
                 height: containerHeight
-            };
-            if (item != null) {
-                if (item instanceof WindowContainer) {
-                    item.move(rect)
-                } else {
-                    item.safelyResizeWindow(rect);
-                }
-            }
+            } as Rect;
         });
     }
 
-    _tileHorizontally(windows: (WindowWrapper | WindowContainer)[]) {
-        const windowWidth = Math.floor(this._workArea.width / windows.length);
+    getHorizontalBounds(): Rect[] {
+        const windowWidth = Math.floor(this._workArea.width / this._tiledItems.length);
 
-        windows.forEach((item, index) => {
+        return this._tiledItems.map((_, index) => {
             const x = this._workArea.x + (index * windowWidth);
-            const rect = {
+            return {
                 x: x,
                 y: this._workArea.y,
                 width: windowWidth,
                 height: this._workArea.height
-            };
-            if (item != null) {
-                if (item instanceof WindowContainer) {
-                    item.move(rect)
-                } else {
-                    item.safelyResizeWindow(rect);
-                }
-            }
+            } as Rect;
         });
     }
+
+    getIndexOfItemNested(item: WindowWrapper): number {
+        for (let i = 0; i < this._tiledItems.length; i++) {
+            const container = this._tiledItems[i];
+            if (container instanceof WindowContainer) {
+                const index = container.getIndexOfItemNested(item);
+                if (index !== -1) {
+                    return i;
+                }
+            } else if (container.getWindowId() === item.getWindowId()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    // TODO: update this to work with nested containers - all other logic should already be working
+    itemDragged(item: WindowWrapper, x: number, y: number): void {
+        let original_index = this.getIndexOfItemNested(item);
+
+        if (original_index === -1) {
+            Logger.error("Item not found in container during drag op", item.getWindowId());
+            return;
+        }
+        let new_index = this.getIndexOfItemNested(item);
+        this.getBounds().forEach((rect, index) => {
+            if (rect.x < x && rect.x + rect.width > x && rect.y < y && rect.y + rect.height > y) {
+                new_index = index;
+            }
+        })
+        if (original_index !== new_index) {
+            this._tiledItems.splice(original_index, 1);
+            this._tiledItems.splice(new_index, 0, item);
+            this.tileWindows()
+        }
+
+    }
+
 
 }

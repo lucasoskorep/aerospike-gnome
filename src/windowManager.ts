@@ -23,41 +23,33 @@ export interface IWindowManager {
 
     handleWindowUnminimized(winWrap: WindowWrapper): void;
 
+    handleWindowChangedWorkspace(winWrap: WindowWrapper): void;
 
-    // removeFromTree(window: Meta.Window): void;
+    handleWindowPositionChanged(winWrap: WindowWrapper): void;
+
     syncActiveWindow(): number | null;
 }
 
 
 const _UNUSED_MONITOR_ID = -1
+const _UNUSED_WINDOW_ID = -1
+
 export default class WindowManager implements IWindowManager {
-    _displaySignals: number[];
-    _windowManagerSignals: number[];
-    _workspaceManagerSignals: number[];
-    _overviewSignals: number[];
+    _displaySignals: number[] = [];
+    _windowManagerSignals: number[] = [];
+    _workspaceManagerSignals: number[] = [];
+    _overviewSignals: number[] = [];
 
-    _activeWindowId: number | null;
-    _grabbedWindowMonitor: number;
-    _monitors: Map<number, Monitor>;
-    _sessionProxy: Gio.DBusProxy | null;
-    _lockedSignalId: number | null;
-    _isScreenLocked: boolean;
+    _activeWindowId: number | null = null;
+    _monitors: Map<number, Monitor> = new Map<number, Monitor>();
 
-    _minimizedItems: Map<number, WindowWrapper>;
+    _minimizedItems: Map<number, WindowWrapper> = new Map<number, WindowWrapper>();
+
+    _grabbedWindowMonitor: number = _UNUSED_MONITOR_ID;
+    _grabbedWindowId: number = _UNUSED_WINDOW_ID;
 
     constructor() {
-        this._displaySignals = [];
-        this._windowManagerSignals = [];
-        this._workspaceManagerSignals = [];
-        this._overviewSignals = [];
-        this._activeWindowId = null;
-        this._grabbedWindowMonitor = _UNUSED_MONITOR_ID;
-        this._monitors = new Map<number, Monitor>();
-        this._sessionProxy = null;
-        this._lockedSignalId = null;
-        this._isScreenLocked = false; // Initialize to unlocked state
 
-        this._minimizedItems = new Map<number, WindowWrapper>();
 
     }
 
@@ -93,7 +85,7 @@ export default class WindowManager implements IWindowManager {
                 Logger.log("SHOWING DESKTOP CHANGED");
             }),
             global.display.connect("workareas-changed", (display) => {
-                Logger.log("WORK AREAS CHANGED", );
+                Logger.log("WORK AREAS CHANGED",);
                 console.log(display.get_workspace_manager().get_active_workspace_index())
             }),
             global.display.connect("in-fullscreen-changed", () => {
@@ -113,9 +105,15 @@ export default class WindowManager implements IWindowManager {
             }),
             global.workspace_manager.connect("workspace-added", (_, wsIndex) => {
                 Logger.log("WORKSPACE ADDED", wsIndex);
+                this._monitors.forEach((monitor: Monitor) => {
+                    monitor.addWorkspace();
+                })
             }),
             global.workspace_manager.connect("workspace-removed", (_, wsIndex) => {
                 Logger.log("WORKSPACE REMOVED", wsIndex);
+                this._monitors.forEach((monitor: Monitor) => {
+                    monitor.removeWorkspace(wsIndex);
+                })
             }),
             global.workspace_manager.connect("active-workspace-changed", (source) => {
                 Logger.log("Active workspace-changed", source.get_active_workspace().index());
@@ -197,12 +195,15 @@ export default class WindowManager implements IWindowManager {
         Logger.log("Grab Op Start");
         Logger.log(display, window, op)
         Logger.log(window.get_monitor())
+
         this._grabbedWindowMonitor = window.get_monitor();
+        this._grabbedWindowId = window.get_id();
     }
 
     handleGrabOpEnd(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
         Logger.log("Grab Op End ", op);
         Logger.log("primary display", display.get_primary_monitor())
+        this._grabbedWindowId = _UNUSED_WINDOW_ID;
         var rect = window.get_frame_rect()
         Logger.info("Release Location", window.get_monitor(), rect.x, rect.y, rect.width, rect.height)
         const old_mon_id = this._grabbedWindowMonitor;
@@ -229,6 +230,20 @@ export default class WindowManager implements IWindowManager {
         Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
     }
 
+    public handleWindowPositionChanged(winWrap: WindowWrapper): void {
+        if (winWrap.getWindowId() === this._grabbedWindowId) {
+            const rect = winWrap.getRect();
+            Logger.log("GRABBED WINDOW POSITION CHANGED", rect.x);
+            const [mouseX, mouseY, _] = global.get_pointer();
+            this._monitors.get(winWrap.getMonitor())?.itemDragged(winWrap, mouseX, mouseY);
+
+            // Log or use the coordinates
+            console.log(`Mouse position: X=${mouseX}, Y=${mouseY}`);
+
+        }
+    }
+
+
     public handleWindowMinimized(winWrap: WindowWrapper): void {
         Logger.warn("WARNING MINIMIZING WINDOW");
         Logger.log("WARNING MINIMIZED", JSON.stringify(winWrap));
@@ -251,6 +266,13 @@ export default class WindowManager implements IWindowManager {
         this._minimizedItems.delete(winWrap.getWindowId());
         this._addWindowWrapperToMonitor(winWrap);
         this._tileMonitors()
+    }
+
+
+    public handleWindowChangedWorkspace(winWrap: WindowWrapper): void {
+        const monitor = winWrap.getWindow().get_monitor();
+        this._monitors.get(monitor)?.removeWindow(winWrap);
+        this._monitors.get(monitor)?.addWindow(winWrap);
     }
 
     public captureExistingWindows() {
@@ -303,6 +325,7 @@ export default class WindowManager implements IWindowManager {
         this._addWindowWrapperToMonitor(wrapper);
 
     }
+
     _addWindowWrapperToMonitor(winWrap: WindowWrapper) {
         if (winWrap.getWindow().minimized) {
             this._minimizedItems.set(winWrap.getWindow().get_id(), winWrap);
