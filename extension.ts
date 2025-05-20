@@ -3,7 +3,7 @@ import {Extension, ExtensionMetadata} from 'resource:///org/gnome/shell/extensio
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import Gio from 'gi://Gio';
 import Shell from 'gi://Shell';
-import WindowManager from './src/windowManager.js'
+import WindowManager from './src/wm/windowManager.js'
 import {Logger} from "./src/utils/logger.js";
 
 export default class aerospike extends Extension {

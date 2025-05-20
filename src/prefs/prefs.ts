@@ -3,6 +3,7 @@ import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 import Gdk from 'gi://Gdk';
 import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {Logger} from "../utils/logger.js";
 
 export default class MyExtensionPreferences extends ExtensionPreferences {
     async fillPreferencesWindow(window: Adw.PreferencesWindow) {
@@ -153,37 +154,7 @@ export default class MyExtensionPreferences extends ExtensionPreferences {
             dialog.add_controller(controller);
 
             controller.connect('key-pressed', (_controller, keyval, keycode, state) => {
-                // Get the key name
-                let keyName = Gdk.keyval_name(keyval);
 
-                // Handle special cases
-                if (keyName === 'Escape') {
-                    dialog.response(Gtk.ResponseType.CANCEL);
-                    return Gdk.EVENT_STOP;
-                } else if (keyName === 'BackSpace') {
-                    // Clear the shortcut
-                    settings.set_strv(key, []);
-                    shortcutButton.set_label(_("Disabled"));
-                    dialog.response(Gtk.ResponseType.OK);
-                    return Gdk.EVENT_STOP;
-                }
-
-                // Convert modifier state to keybinding modifiers
-                let modifiers = state & Gtk.accelerator_get_default_mod_mask();
-
-                // Ignore standalone modifier keys
-                if (Gdk.ModifierType.SHIFT_MASK <= keyval && keyval <= Gdk.ModifierType.META_MASK)
-                    return Gdk.EVENT_STOP;
-
-                // Create accelerator string
-                let accelerator = Gtk.accelerator_name(keyval, modifiers);
-                if (accelerator) {
-                    settings.set_strv(key, [accelerator]);
-                    shortcutButton.set_label(accelerator);
-                    dialog.response(Gtk.ResponseType.OK);
-                }
-
-                return Gdk.EVENT_STOP;
             });
 
             dialog.present();

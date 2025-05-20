@@ -1,14 +1,11 @@
 import Meta from "gi://Meta";
-import Gio from "gi://Gio";
-import GLib from "gi://GLib";
+// import Gio from "gi://Gio";
+// import GLib from "gi://GLib";
 
 import {WindowWrapper} from './window.js';
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
-import Mtk from "@girs/mtk-16";
-import {Logger} from "./utils/logger.js";
-import WindowContainer from "./container.js";
-import {MessageTray} from "@girs/gnome-shell/ui/messageTray";
-import queueEvent, {QueuedEvent} from "./utils/events.js";
+// import Mtk from "@girs/mtk-16";
+import {Logger} from "../utils/logger.js";
 import Monitor from "./monitor.js";
 
 
@@ -76,6 +73,7 @@ export default class WindowManager implements IWindowManager {
             }),
             global.display.connect("window-entered-monitor", (display, monitor, window) => {
                 Logger.log("WINDOW HAS ENTERED NEW MONITOR!")
+                // this._moveWindowToMonitor(window, monitor);
             }),
             global.display.connect('window-created', (display, window) => {
                 this.handleWindowCreated(display, window);
@@ -230,15 +228,33 @@ export default class WindowManager implements IWindowManager {
         Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
     }
 
+    _moveWindowToMonitor(window: Meta.Window, monitorId: number): void {
+        let wrapped = undefined;
+        for (const monitor of this._monitors.values()) {
+            wrapped = monitor.getWindow(window.get_id());
+            if (wrapped !== undefined) {
+                monitor.removeWindow(wrapped);
+                break;
+            }
+        }
+        if (wrapped === undefined) {
+            wrapped = new WindowWrapper(window, this.handleWindowMinimized);
+            wrapped.connectWindowSignals(this);
+        }
+        let new_mon = this._monitors.get(monitorId);
+        new_mon?.addWindow(wrapped)
+        this._tileMonitors();
+    }
+
     public handleWindowPositionChanged(winWrap: WindowWrapper): void {
         if (winWrap.getWindowId() === this._grabbedWindowId) {
             const rect = winWrap.getRect();
-            Logger.log("GRABBED WINDOW POSITION CHANGED", rect.x);
+            // Logger.log("GRABBED WINDOW POSITION CHANGED", rect.x);
             const [mouseX, mouseY, _] = global.get_pointer();
             this._monitors.get(winWrap.getMonitor())?.itemDragged(winWrap, mouseX, mouseY);
 
             // Log or use the coordinates
-            console.log(`Mouse position: X=${mouseX}, Y=${mouseY}`);
+            // console.log(`Mouse position: X=${mouseX}, Y=${mouseY}`);
 
         }
     }
@@ -327,10 +343,14 @@ export default class WindowManager implements IWindowManager {
     }
 
     _addWindowWrapperToMonitor(winWrap: WindowWrapper) {
+        Logger.log("Adding window", JSON.stringify(winWrap));
+        Logger.log("Adding window raw", JSON.stringify(winWrap.getWindow()));
+        Logger.log("Adding window raw", JSON.stringify(winWrap.getWindow().minimized));
         if (winWrap.getWindow().minimized) {
             this._minimizedItems.set(winWrap.getWindow().get_id(), winWrap);
+        } else {
+            this._monitors.get(winWrap.getWindow().get_monitor())?.addWindow(winWrap)
         }
-        this._monitors.get(winWrap.getWindow().get_monitor())?.addWindow(winWrap)
     }
 
     _tileMonitors(): void {

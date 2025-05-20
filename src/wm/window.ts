@@ -1,8 +1,8 @@
 import Meta from 'gi://Meta';
 import Clutter from "gi://Clutter";
 import {IWindowManager} from "./windowManager.js";
-import {Logger} from "./utils/logger.js";
-import {Rect} from "./utils/rect.js";
+import {Logger} from "../utils/logger.js";
+import {Rect} from "../utils/rect.js";
 import WindowContainer from "./container.js";
 
 
@@ -12,15 +12,14 @@ type WindowWorkspaceChangedHandler = (window: WindowWrapper) => void;
 export class WindowWrapper {
     readonly _window: Meta.Window;
     readonly _windowMinimizedHandler: WindowMinimizedHandler;
-    // readonly _windowWorkspaceChangedHandler: WindowWorkspaceChangedHandler;
-    readonly _signals: number[];
+    readonly _signals: number[] = [];
+    _parent: WindowContainer | null = null;
 
     constructor(
         window: Meta.Window,
         winMinimized: WindowMinimizedHandler
     ) {
         this._window = window;
-        this._signals = [];
         this._windowMinimizedHandler = winMinimized;
     }
 
@@ -42,6 +41,17 @@ export class WindowWrapper {
 
     getRect(): Rect {
         return this._window.get_frame_rect();
+    }
+
+    setParent(parent: WindowContainer): void {
+        this._parent = parent;
+    }
+
+    getParent(): WindowContainer | null {
+        if (this._parent == null) {
+            Logger.warn(`Attempting to get parent for window without parent ${JSON.stringify(this)}`);
+        }
+        return this._parent
     }
 
     connectWindowSignals(
