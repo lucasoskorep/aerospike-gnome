@@ -1,8 +1,8 @@
 import {WindowWrapper} from "./window.js";
-import {Logger} from "./utils/logger.js";
+import {Logger} from "../utils/logger.js";
 import Meta from "gi://Meta";
-import queueEvent from "./utils/events.js";
-import {Rect} from "./utils/rect.js";
+import queueEvent from "../utils/events.js";
+import {Rect} from "../utils/rect.js";
 
 enum Orientation {
     HORIZONTAL = 0,
@@ -34,6 +34,7 @@ export default class WindowContainer {
         // Add window to managed windows
         this._tiledItems.push(winWrap);
         this._tiledWindowLookup.set(winWrap.getWindowId(), winWrap);
+        winWrap.setParent(this);
         queueEvent({
             name: "tiling-windows",
             callback: () => {

@@ -1,7 +1,7 @@
 import {WindowWrapper} from "./window.js";
-import {Rect} from "./utils/rect.js";
-import queueEvent from "./utils/events.js";
-import {Logger} from "./utils/logger.js";
+import {Rect} from "../utils/rect.js";
+import queueEvent from "../utils/events.js";
+import {Logger} from "../utils/logger.js";
 import Meta from "gi://Meta";
 import Mtk from "@girs/mtk-16";
 
