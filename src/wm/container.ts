@@ -34,7 +34,7 @@ export default class WindowContainer {
         // Add window to managed windows
         this._tiledItems.push(winWrap);
         this._tiledWindowLookup.set(winWrap.getWindowId(), winWrap);
-        winWrap.setParent(this);
+        // winWrap.setParent(this);
         queueEvent({
             name: "tiling-windows",
             callback: () => {

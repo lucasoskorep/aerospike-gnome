@@ -3,3 +3,4 @@ node_modules
 dist
 /schemas/gschemas.compiled
 /aerospike.zip
+/debug.log

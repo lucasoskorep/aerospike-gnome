@@ -44,6 +44,7 @@ export default class WindowManager implements IWindowManager {
 
     _grabbedWindowMonitor: number = _UNUSED_MONITOR_ID;
     _grabbedWindowId: number = _UNUSED_WINDOW_ID;
+    _changingGrabbedMonitor: boolean = false;
 
     constructor() {
 
@@ -73,7 +74,6 @@ export default class WindowManager implements IWindowManager {
             }),
             global.display.connect("window-entered-monitor", (display, monitor, window) => {
                 Logger.log("WINDOW HAS ENTERED NEW MONITOR!")
-                // this._moveWindowToMonitor(window, monitor);
             }),
             global.display.connect('window-created', (display, window) => {
                 this.handleWindowCreated(display, window);
@@ -91,11 +91,11 @@ export default class WindowManager implements IWindowManager {
             }),
         )
 
-        this._windowManagerSignals = [
-            global.window_manager.connect("show-tile-preview", (_, _metaWindow, _rect, _num) => {
-                Logger.log("SHOW TITLE PREVIEW!")
-            }),
-        ];
+        // this._windowManagerSignals = [
+        //     global.window_manager.connect("show-tile-preview", (_, _metaWindow, _rect, _num) => {
+        //         Logger.log("SHOW TITLE PREVIEW!")
+        //     }),
+        // ];
 
         this._workspaceManagerSignals = [
             global.workspace_manager.connect("showing-desktop-changed", () => {
@@ -204,81 +204,75 @@ export default class WindowManager implements IWindowManager {
         this._grabbedWindowId = _UNUSED_WINDOW_ID;
         var rect = window.get_frame_rect()
         Logger.info("Release Location", window.get_monitor(), rect.x, rect.y, rect.width, rect.height)
-        const old_mon_id = this._grabbedWindowMonitor;
-        const new_mon_id = window.get_monitor();
-
-        Logger.info("MONITOR MATCH", old_mon_id !== new_mon_id);
-        if (old_mon_id !== new_mon_id) {
-            Logger.trace("MOVING MONITOR");
-            let old_mon = this._monitors.get(old_mon_id);
-            let new_mon = this._monitors.get(new_mon_id);
-            if (old_mon === undefined || new_mon === undefined) {
-                return;
-            }
-
-            let wrapped = old_mon.getWindow(window.get_id())
-            if (wrapped === undefined) {
-                wrapped = new WindowWrapper(window, this.handleWindowMinimized);
-            } else {
-                old_mon.removeWindow(wrapped)
-            }
-            new_mon.addWindow(wrapped)
-        }
+        // previously window was moved to a new monitor here instead of it being fluid during drag events.
         this._tileMonitors();
         Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
     }
 
     _moveWindowToMonitor(window: Meta.Window, monitorId: number): void {
+        Logger.info("MOVING WINDOW TO MONITOR", window.get_id(), monitorId);
         let wrapped = undefined;
         for (const monitor of this._monitors.values()) {
             wrapped = monitor.getWindow(window.get_id());
             if (wrapped !== undefined) {
+                Logger.error("FOUND WINDOW IN MONITOR")
                 monitor.removeWindow(wrapped);
                 break;
             }
         }
         if (wrapped === undefined) {
+            Logger.error("WINDOW NOT DEFINED")
             wrapped = new WindowWrapper(window, this.handleWindowMinimized);
             wrapped.connectWindowSignals(this);
         }
+
+        wrapped.startDragging()
         let new_mon = this._monitors.get(monitorId);
         new_mon?.addWindow(wrapped)
-        this._tileMonitors();
+        Logger.info("UPDATE MONITOR", new_mon);
+        this._grabbedWindowMonitor = monitorId;
+        wrapped.stopDragging();
     }
 
     public handleWindowPositionChanged(winWrap: WindowWrapper): void {
+        if (this._changingGrabbedMonitor) {
+            return;
+        }
         if (winWrap.getWindowId() === this._grabbedWindowId) {
-            const rect = winWrap.getRect();
-            // Logger.log("GRABBED WINDOW POSITION CHANGED", rect.x);
             const [mouseX, mouseY, _] = global.get_pointer();
-            this._monitors.get(winWrap.getMonitor())?.itemDragged(winWrap, mouseX, mouseY);
 
-            // Log or use the coordinates
-            // console.log(`Mouse position: X=${mouseX}, Y=${mouseY}`);
+            let monitorIndex = -1;
+            for (let i = 0; i < global.display.get_n_monitors(); i++) {
+                const workArea = global.workspace_manager.get_active_workspace().get_work_area_for_monitor(i);
+                if (mouseX >= workArea.x && mouseX < workArea.x + workArea.width &&
+                    mouseY >= workArea.y && mouseY < workArea.y + workArea.height) {
+                    monitorIndex = i;
+                    break;
+                }
+            }
+            if (monitorIndex === -1) {
+                return
+            }
 
+            if (monitorIndex !== this._grabbedWindowMonitor) {
+                this._changingGrabbedMonitor = true;
+                Logger.log("CHANGING MONITOR FOR WINDOW");
+                this._moveWindowToMonitor(winWrap.getWindow(), monitorIndex);
+                this._changingGrabbedMonitor = false
+            }
+            this._monitors.get(monitorIndex)?.itemDragged(winWrap, mouseX, mouseY);
         }
     }
 
 
     public handleWindowMinimized(winWrap: WindowWrapper): void {
-        Logger.warn("WARNING MINIMIZING WINDOW");
-        Logger.log("WARNING MINIMIZED", JSON.stringify(winWrap));
         const monitor_id = winWrap.getWindow().get_monitor()
-        Logger.log("WARNING MINIMIZED", monitor_id);
-        Logger.warn("WARNING MINIMIZED", this._monitors);
-
         this._minimizedItems.set(winWrap.getWindowId(), winWrap);
         this._monitors.get(monitor_id)?.removeWindow(winWrap);
-
-        Logger.warn("WARNING MINIMIZED ITEMS", JSON.stringify(this._minimizedItems));
         this._tileMonitors()
     }
 
     public handleWindowUnminimized(winWrap: WindowWrapper): void {
-        Logger.log("WINDOW UNMINIMIZED");
-        Logger.log("WINDOW UNMINIMIZED", winWrap == null);
-        // Logger.log("WINDOW UNMINIMIZED", winWrap);
-        // Logger.log("WINDOW UNMINIMIZED", winWrap.getWindowId());
         this._minimizedItems.delete(winWrap.getWindowId());
         this._addWindowWrapperToMonitor(winWrap);
         this._tileMonitors()
@@ -292,10 +286,8 @@ export default class WindowManager implements IWindowManager {
     }
 
     public captureExistingWindows() {
-        Logger.log("CAPTURING WINDOWS")
         const workspace = global.workspace_manager.get_active_workspace();
         const windows = global.display.get_tab_list(Meta.TabList.NORMAL, workspace);
-        Logger.log("WINDOWS", windows);
         windows.forEach(window => {
             if (this._isWindowTileable(window)) {
                 this.addWindowToMonitor(window);
@@ -343,9 +335,6 @@ export default class WindowManager implements IWindowManager {
     }
 
     _addWindowWrapperToMonitor(winWrap: WindowWrapper) {
-        Logger.log("Adding window", JSON.stringify(winWrap));
-        Logger.log("Adding window raw", JSON.stringify(winWrap.getWindow()));
-        Logger.log("Adding window raw", JSON.stringify(winWrap.getWindow().minimized));
         if (winWrap.getWindow().minimized) {
             this._minimizedItems.set(winWrap.getWindow().get_id(), winWrap);
         } else {
@@ -360,14 +349,35 @@ export default class WindowManager implements IWindowManager {
         }
     }
 
+    block_titles = [
+        "org.gnome.Shell.Extensions",
+    ]
+
+    _isWindowTilingBlocked(window: Meta.Window) : boolean {
+        Logger.info("title", window.get_title());
+        Logger.info("description", window.get_description());
+        Logger.info("class", window.get_wm_class());
+        Logger.info("class", window.get_wm_class_instance());
+        return this.block_titles.some((title) => {
+            if (window.get_title() === title) {
+                Logger.log("WINDOW BLOCKED FROM TILING", window.get_title());
+                return true;
+            }
+            return false;
+        });
+    }
+
     _isWindowTileable(window: Meta.Window) {
 
         if (!window || !window.get_compositor_private()) {
             return false;
         }
-
+        if (this._isWindowTilingBlocked(window)) {
+            return false;
+        }
         const windowType = window.get_window_type();
-        Logger.log("WINDOW TYPE", windowType);
+        Logger.log("WINDOW TILING CHECK",);
+
         // Skip certain types of windows
         return !window.is_skip_taskbar() &&
             windowType !== Meta.WindowType.DESKTOP &&

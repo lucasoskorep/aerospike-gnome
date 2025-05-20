@@ -14,6 +14,7 @@ export class WindowWrapper {
     readonly _windowMinimizedHandler: WindowMinimizedHandler;
     readonly _signals: number[] = [];
     _parent: WindowContainer | null = null;
+    _dragging: boolean = false;
 
     constructor(
         window: Meta.Window,
@@ -43,16 +44,23 @@ export class WindowWrapper {
         return this._window.get_frame_rect();
     }
 
-    setParent(parent: WindowContainer): void {
-        this._parent = parent;
+    startDragging(): void {
+        this._dragging = true;
+    }
+    stopDragging(): void {
+        this._dragging = false;
     }
 
-    getParent(): WindowContainer | null {
-        if (this._parent == null) {
-            Logger.warn(`Attempting to get parent for window without parent ${JSON.stringify(this)}`);
-        }
-        return this._parent
-    }
+    // setParent(parent: WindowContainer): void {
+    //     this._parent = parent;
+    // }
+    //
+    // getParent(): WindowContainer | null {
+    //     if (this._parent == null) {
+    //         Logger.warn(`Attempting to get parent for window without parent ${JSON.stringify(this)}`);
+    //     }
+    //     return this._parent
+    // }
 
     connectWindowSignals(
         windowManager: IWindowManager,
@@ -114,7 +122,11 @@ export class WindowWrapper {
 
     // This is meant to be an exact copy of Forge's move function, renamed to maintain your API
     safelyResizeWindow(rect: Rect): void {
-        // Keep minimal logging 
+        // Keep minimal logging
+        if (this._dragging) {
+            Logger.info("STOPPED RESIZE BECAUSE ITEM IS BEING DRAGGED")
+            return
+        }
         Logger.log("SAFELY RESIZE", rect.x, rect.y, rect.width, rect.height);
         const actor = this._window.get_compositor_private();
 
