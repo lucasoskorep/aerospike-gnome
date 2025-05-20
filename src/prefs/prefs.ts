@@ -4,8 +4,9 @@ import Gtk from 'gi://Gtk';
 import Gdk from 'gi://Gdk';
 import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 import {Logger} from "../utils/logger.js";
+import {EntryRow} from "./keybindings.js";
 
-export default class MyExtensionPreferences extends ExtensionPreferences {
+export default class AerospikeExtensions extends ExtensionPreferences {
     async fillPreferencesWindow(window: Adw.PreferencesWindow) {
         // Create settings object
         const settings = this.getSettings('org.gnome.shell.extensions.aerospike');
@@ -17,17 +18,6 @@ export default class MyExtensionPreferences extends ExtensionPreferences {
         });
         window.add(page);
 
-        // Create keybindings group
-        const keybindingsGroup = new Adw.PreferencesGroup({
-            title: _('Keyboard Shortcuts'),
-        });
-        page.add(keybindingsGroup);
-
-        // Add keybinding rows
-        this.addKeybindingRow(keybindingsGroup, settings, 'keybinding-1', _('Action 1'));
-        this.addKeybindingRow(keybindingsGroup, settings, 'keybinding-2', _('Action 2'));
-        this.addKeybindingRow(keybindingsGroup, settings, 'keybinding-3', _('Action 3'));
-        this.addKeybindingRow(keybindingsGroup, settings, 'keybinding-4', _('Action 4'));
 
         // Create options group
         const optionsGroup = new Adw.PreferencesGroup({
@@ -115,49 +105,82 @@ export default class MyExtensionPreferences extends ExtensionPreferences {
             const color = colorButton.get_rgba().to_string();
             settings.set_string('color-selection', color);
         });
+
+        // Create keybindings group
+        const keybindingsGroup = new Adw.PreferencesGroup({
+            title: _('Keyboard Shortcuts'),
+            description: `${_("Syntax")}: <Super>h, <Shift>g, <Super><Shift>h
+            ${_("Legend")}: <Super> - ${_("Windows key")}, <Primary> - ${_("Control key")}
+            ${_("Delete text to unset. Press Return key to accept.")}`,
+        });
+        page.add(keybindingsGroup);
+
+        // Add keybinding rows as EntryRows with proper mapping
+        // Use the helper function to create the map object
+        const keybindingMap = this.createKeybindingMap();
+        
+        keybindingsGroup.add(
+            new EntryRow({
+                title: _('Action 1'),
+                settings: settings,
+                bind: 'move-left',
+                map: keybindingMap
+            })
+        );
+        
+        keybindingsGroup.add(
+            new EntryRow({
+                title: _('Action 2'),
+                settings: settings,
+                bind: 'move-right',
+                map: keybindingMap
+            })
+        );
+        
+        keybindingsGroup.add(
+            new EntryRow({
+                title: _('Action 3'),
+                settings: settings,
+                bind: 'join-with-left',
+                map: keybindingMap
+            })
+        );
+        
+        keybindingsGroup.add(
+            new EntryRow({
+                title: _('Action 4'),
+                settings: settings,
+                bind: 'join-with-right',
+                map: keybindingMap
+            })
+        );
+
+
     }
 
-    private addKeybindingRow(
-        group: Adw.PreferencesGroup,
-        settings: Gio.Settings,
-        key: string,
-        title: string
-    ) {
-        const shortcutsRow = new Adw.ActionRow({
-            title: title,
-        });
-
-        group.add(shortcutsRow);
-
-        // Create a button for setting shortcuts
-        const shortcutButton = new Gtk.Button({
-            valign: Gtk.Align.CENTER,
-            label: settings.get_strv(key)[0] || _("Disabled")
-        });
-
-        shortcutsRow.add_suffix(shortcutButton);
-        shortcutsRow.set_activatable_widget(shortcutButton);
-
-        // When clicking the button, show a dialog or start listening for keystroke
-        shortcutButton.connect('clicked', () => {
-            // Show a simple popup stating that the shortcut is being recorded
-            const dialog = new Gtk.MessageDialog({
-                modal: true,
-                text: _("Press a key combination to set as shortcut"),
-                secondary_text: _("Press Esc to cancel or Backspace to disable"),
-                buttons: Gtk.ButtonsType.CANCEL,
-                transient_for: group.get_root() as Gtk.Window
-            });
-
-            // Create a keypress event controller
-            const controller = new Gtk.EventControllerKey();
-            dialog.add_controller(controller);
-
-            controller.connect('key-pressed', (_controller, keyval, keycode, state) => {
-
-            });
-
-            dialog.present();
-        });
+    // Helper function to create a keybinding mapping object
+    private createKeybindingMap() {
+        return {
+            from(settings: Gio.Settings, bind: string) {
+                return settings.get_strv(bind).join(',');
+            },
+            to(settings: Gio.Settings, bind: string, value: string) {
+                if (!!value) {
+                    const mappings = value.split(',').map((x) => {
+                        const [, key, mods] = Gtk.accelerator_parse(x);
+                        return Gtk.accelerator_valid(key, mods) && Gtk.accelerator_name(key, mods);
+                    });
+                    // Filter out any false values to ensure we only have strings
+                    const stringMappings = mappings.filter((x): x is string => typeof x === 'string');
+                    if (stringMappings.length > 0) {
+                        Logger.debug("setting", bind, "to", stringMappings);
+                        settings.set_strv(bind, stringMappings);
+                    }
+                } else {
+                    // If value deleted, unset the mapping
+                    settings.set_strv(bind, []);
+                }
+            },
+        };
     }
 }

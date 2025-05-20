@@ -21,6 +21,7 @@ export default class aerospike extends Extension {
     enable() {
         Logger.log("STARTING AEROSPIKE!")
         this.bindSettings();
+        this.setupKeybindings();
         this.windowManager.enable()
     }
 
@@ -32,24 +33,24 @@ export default class aerospike extends Extension {
 
     private bindSettings() {
         // Monitor settings changes
-        this.settings.connect('changed::keybinding-1', () => {
-            log(`Keybinding 1 changed to: ${this.settings.get_strv('keybinding-1')}`);
-            this.refreshKeybinding('keybinding-1');
+        this.settings.connect('changed::move-left', () => {
+            log(`Keybinding 1 changed to: ${this.settings.get_strv('move-left')}`);
+            this.refreshKeybinding('move-left');
         });
 
-        this.settings.connect('changed::keybinding-2', () => {
-            log(`Keybinding 2 changed to: ${this.settings.get_strv('keybinding-2')}`);
-            this.refreshKeybinding('keybinding-2');
+        this.settings.connect('changed::move-right', () => {
+            log(`Keybinding 2 changed to: ${this.settings.get_strv('move-right')}`);
+            this.refreshKeybinding('move-right');
         });
 
-        this.settings.connect('changed::keybinding-3', () => {
-            log(`Keybinding 3 changed to: ${this.settings.get_strv('keybinding-3')}`);
-            this.refreshKeybinding('keybinding-3');
+        this.settings.connect('changed::join-with-left', () => {
+            log(`Keybinding 3 changed to: ${this.settings.get_strv('join-with-left')}`);
+            this.refreshKeybinding('join-with-left');
         });
 
-        this.settings.connect('changed::keybinding-4', () => {
-            log(`Keybinding 4 changed to: ${this.settings.get_strv('keybinding-4')}`);
-            this.refreshKeybinding('keybinding-4');
+        this.settings.connect('changed::join-with-right', () => {
+            log(`Keybinding 4 changed to: ${this.settings.get_strv('join-with-right')}`);
+            this.refreshKeybinding('join-with-right');
         });
 
         this.settings.connect('changed::dropdown-option', () => {
@@ -67,24 +68,24 @@ export default class aerospike extends Extension {
         }
 
         switch (settingName) {
-            case 'keybinding-1':
-                this.bindKeybinding('keybinding-1', () => {
-                    log('Keybinding 1 was pressed!');
+            case 'move-left':
+                this.bindKeybinding('move-left', () => {
+                    Logger.info('Keybinding 1 was pressed!');
                 });
                 break;
-            case 'keybinding-2':
-                this.bindKeybinding('keybinding-2', () => {
-                    log('Keybinding 2 was pressed!');
+            case 'move-right':
+                this.bindKeybinding('move-right', () => {
+                    Logger.info('Keybinding 2 was pressed!');
                 });
                 break;
-            case 'keybinding-3':
-                this.bindKeybinding('keybinding-3', () => {
-                    log('Keybinding 3 was pressed!');
+            case 'join-with-left':
+                this.bindKeybinding('join-with-left', () => {
+                    Logger.info('Keybinding 3 was pressed!');
                 });
                 break;
-            case 'keybinding-4':
-                this.bindKeybinding('keybinding-4', () => {
-                    log('Keybinding 4 was pressed!');
+            case 'join-with-right':
+                this.bindKeybinding('join-with-right', () => {
+                    Logger.info('Keybinding 4 was pressed!');
                 });
                 break;
         }
@@ -98,20 +99,20 @@ export default class aerospike extends Extension {
     }
 
     private setupKeybindings() {
-        this.bindKeybinding('keybinding-1', () => {
-            log('Keybinding 1 was pressed!');
+        this.bindKeybinding('move-left', () => {
+            Logger.info('Keybinding 1 was pressed!');
         });
 
-        this.bindKeybinding('keybinding-2', () => {
-            log('Keybinding 2 was pressed!');
+        this.bindKeybinding('move-right', () => {
+            Logger.info('Keybinding 2 was pressed!');
         });
 
-        this.bindKeybinding('keybinding-3', () => {
-            log('Keybinding 3 was pressed!');
+        this.bindKeybinding('join-with-left', () => {
+            Logger.info('Keybinding 3 was pressed!');
         });
 
-        this.bindKeybinding('keybinding-4', () => {
-            log('Keybinding 4 was pressed!');
+        this.bindKeybinding('join-with-right', () => {
+            Logger.info('Keybinding 4 was pressed!');
         });
     }
 
@@ -125,7 +126,7 @@ export default class aerospike extends Extension {
         const keyBindingAction = Main.wm.addKeybinding(
             settingName,
             this.settings,
-            Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
+            Meta.KeyBindingFlags.NONE,
             Shell.ActionMode.NORMAL,
             callback
         );
