@@ -48,6 +48,7 @@ export class WindowWrapper {
         this._dragging = true;
     }
     stopDragging(): void {
+        Logger.log("STOPPED DRAGGING")
         this._dragging = false;
     }
 
@@ -120,12 +121,11 @@ export class WindowWrapper {
         }
     }
 
-    // This is meant to be an exact copy of Forge's move function, renamed to maintain your API
     safelyResizeWindow(rect: Rect): void {
         // Keep minimal logging
         if (this._dragging) {
             Logger.info("STOPPED RESIZE BECAUSE ITEM IS BEING DRAGGED")
-            return
+            return;
         }
         Logger.log("SAFELY RESIZE", rect.x, rect.y, rect.width, rect.height);
         const actor = this._window.get_compositor_private();

@@ -190,10 +190,13 @@ export default class WindowManager implements IWindowManager {
 
 
     handleGrabOpBegin(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
-        Logger.log("Grab Op Start");
+        if (op === Meta.GrabOp.MOVING_UNCONSTRAINED){
+
+        }
+        Logger.log("Grab Op Start", op);
         Logger.log(display, window, op)
         Logger.log(window.get_monitor())
-
+        this._getWrappedWindow(window)?.startDragging();
         this._grabbedWindowMonitor = window.get_monitor();
         this._grabbedWindowId = window.get_id();
     }
@@ -203,35 +206,51 @@ export default class WindowManager implements IWindowManager {
         Logger.log("primary display", display.get_primary_monitor())
         this._grabbedWindowId = _UNUSED_WINDOW_ID;
         var rect = window.get_frame_rect()
+        this._getWrappedWindow(window)?.stopDragging();
         Logger.info("Release Location", window.get_monitor(), rect.x, rect.y, rect.width, rect.height)
         // previously window was moved to a new monitor here instead of it being fluid during drag events.
         this._tileMonitors();
         Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
     }
 
-    _moveWindowToMonitor(window: Meta.Window, monitorId: number): void {
-        Logger.info("MOVING WINDOW TO MONITOR", window.get_id(), monitorId);
+    _getWrappedWindow(window: Meta.Window): WindowWrapper | undefined {
         let wrapped = undefined;
         for (const monitor of this._monitors.values()) {
             wrapped = monitor.getWindow(window.get_id());
             if (wrapped !== undefined) {
-                Logger.error("FOUND WINDOW IN MONITOR")
+                break;
+            }
+        }
+        return wrapped;
+    }
+
+    _getAndRemoveWrappedWindow(window: Meta.Window): WindowWrapper | undefined {
+        let wrapped = undefined;
+        for (const monitor of this._monitors.values()) {
+            wrapped = monitor.getWindow(window.get_id());
+            if (wrapped !== undefined) {
                 monitor.removeWindow(wrapped);
                 break;
             }
         }
+        return wrapped;
+    }
+
+    _moveWindowToMonitor(window: Meta.Window, monitorId: number): void {
+        Logger.info("MOVING WINDOW TO MONITOR", window.get_id(), monitorId);
+        let wrapped = this._getAndRemoveWrappedWindow(window);
         if (wrapped === undefined) {
             Logger.error("WINDOW NOT DEFINED")
             wrapped = new WindowWrapper(window, this.handleWindowMinimized);
             wrapped.connectWindowSignals(this);
         }
 
-        wrapped.startDragging()
+        // wrapped.startDragging()
         let new_mon = this._monitors.get(monitorId);
         new_mon?.addWindow(wrapped)
         Logger.info("UPDATE MONITOR", new_mon);
         this._grabbedWindowMonitor = monitorId;
-        wrapped.stopDragging();
+        // wrapped.stopDragging();
     }
 
     public handleWindowPositionChanged(winWrap: WindowWrapper): void {
