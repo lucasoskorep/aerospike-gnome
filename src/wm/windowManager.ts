@@ -77,8 +77,10 @@ export default class WindowManager implements IWindowManager {
             global.display.connect("window-entered-monitor", (display, monitor, window) => {
                 Logger.log("WINDOW HAS ENTERED NEW MONITOR!")
                 if (this._showingOverview) {
-                    Logger.log("WINDOW HAS ENTERED NEW MONITOR IN OVERVIEW - MOVING")
-                    this._moveWindowToMonitor(window, monitor)
+                    if (this._getWrappedWindow(window) !== undefined) {
+                        Logger.log("OVERVIEW - MOVING")
+                        this._moveWindowToMonitor(window, monitor)
+                    }
                 }
             }),
             global.display.connect('window-created', (display, window) => {
@@ -212,29 +214,7 @@ export default class WindowManager implements IWindowManager {
         Logger.log("Grab Op End ", op);
         Logger.log("primary display", display.get_primary_monitor())
         this._grabbedWindowId = _UNUSED_WINDOW_ID;
-        var rect = window.get_frame_rect()
         this._getWrappedWindow(window)?.stopDragging();
-        Logger.info("Release Location", window.get_monitor(), rect.x, rect.y, rect.width, rect.height)
-        // previously window was moved to a new monitor here instead of it being fluid during drag events.
-        const old_mon_id = this._grabbedWindowMonitor;
-        const new_mon_id = window.get_monitor();
-        Logger.info("MONITOR MATCH", old_mon_id !== new_mon_id);
-        if (old_mon_id !== new_mon_id) {
-            Logger.trace("MOVING MONITOR");
-            let old_mon = this._monitors.get(old_mon_id);
-            let new_mon = this._monitors.get(new_mon_id);
-            if (old_mon === undefined || new_mon === undefined) {
-                return;
-            }
-
-            let wrapped = old_mon.getWindow(window.get_id())
-            if (wrapped === undefined) {
-                wrapped = new WindowWrapper(window, this.handleWindowMinimized);
-            } else {
-                old_mon.removeWindow(wrapped)
-            }
-            new_mon.addWindow(wrapped)
-        }
         this._tileMonitors();
         Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
     }
