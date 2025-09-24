@@ -4,7 +4,8 @@
   "uuid": "aerospike@lucaso.io",
   "settings-schema": "org.gnome.shell.extensions.aerospike",
   "shell-version": [
-    "48"
+    "48",
+    "49"
   ],
   "gettext-domain": "aerospike@lucaso.io",
   "url": "https://gitea.chaosdev.gay/lucasoskorep/aerospike@lucaso.io"

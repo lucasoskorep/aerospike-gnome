@@ -243,20 +243,15 @@ export default class WindowManager implements IWindowManager {
     }
 
     _moveWindowToMonitor(window: Meta.Window, monitorId: number): void {
-        Logger.info("MOVING WINDOW TO MONITOR", window.get_id(), monitorId);
         let wrapped = this._getAndRemoveWrappedWindow(window);
         if (wrapped === undefined) {
             Logger.error("WINDOW NOT DEFINED")
             wrapped = new WindowWrapper(window, this.handleWindowMinimized);
             wrapped.connectWindowSignals(this);
         }
-
-        // wrapped.startDragging()
         let new_mon = this._monitors.get(monitorId);
         new_mon?.addWindow(wrapped)
-        Logger.info("UPDATE MONITOR", new_mon);
         this._grabbedWindowMonitor = monitorId;
-        // wrapped.stopDragging();
     }
 
     public handleWindowPositionChanged(winWrap: WindowWrapper): void {
@@ -281,7 +276,6 @@ export default class WindowManager implements IWindowManager {
 
             if (monitorIndex !== this._grabbedWindowMonitor) {
                 this._changingGrabbedMonitor = true;
-                Logger.log("CHANGING MONITOR FOR WINDOW");
                 this._moveWindowToMonitor(winWrap.getWindow(), monitorIndex);
                 this._changingGrabbedMonitor = false
             }
@@ -384,7 +378,7 @@ export default class WindowManager implements IWindowManager {
         Logger.info("class", window.get_wm_class());
         Logger.info("class", window.get_wm_class_instance());
         return this.block_titles.some((title) => {
-            if (window.get_title() === title) {
+            if (window.get_wm_class() === title) {
                 Logger.log("WINDOW BLOCKED FROM TILING", window.get_title());
                 return true;
             }
