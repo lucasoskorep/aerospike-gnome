@@ -4,6 +4,7 @@ import {IWindowManager} from "./windowManager.js";
 import {Logger} from "../utils/logger.js";
 import {Rect} from "../utils/rect.js";
 import WindowContainer from "./container.js";
+import queueEvent from "../utils/events.js";
 
 
 type WindowMinimizedHandler = (window: WindowWrapper) => void;
@@ -90,7 +91,7 @@ export class WindowWrapper {
                 }
             }),
             this._window.connect('notify::maximized-horizontally', () => {
-                if (this._window.get_maximized()) {
+                if (this._window.is_maximized()) {
                     Logger.log(`Window maximized: ${windowId}`);
                 } else {
                     Logger.log(`Window unmaximized: ${windowId}`);
@@ -121,13 +122,13 @@ export class WindowWrapper {
         }
     }
 
-    safelyResizeWindow(rect: Rect): void {
+    safelyResizeWindow(rect: Rect, _retry: number = 2): void {
         // Keep minimal logging
         if (this._dragging) {
             Logger.info("STOPPED RESIZE BECAUSE ITEM IS BEING DRAGGED")
             return;
         }
-        Logger.log("SAFELY RESIZE", rect.x, rect.y, rect.width, rect.height);
+        // Logger.log("SAFELY RESIZE", rect.x, rect.y, rect.width, rect.height);
         const actor = this._window.get_compositor_private();
 
         if (!actor) {
@@ -137,11 +138,20 @@ export class WindowWrapper {
         let windowActor = this._window.get_compositor_private() as Clutter.Actor;
         if (!windowActor) return;
         windowActor.remove_all_transitions();
-        Logger.info("MOVING")
+        // Logger.info("MOVING")
         this._window.move_frame(true, rect.x, rect.y);
-        Logger.info("RESIZING MOVING")
+        // Logger.info("RESIZING MOVING")
         this._window.move_resize_frame(true, rect.x, rect.y, rect.width, rect.height);
-
+        let new_rect = this._window.get_frame_rect();
+        if ( _retry > 0 && (new_rect.x != rect.x || rect.y != new_rect.y || rect.width < new_rect.width || rect.height < new_rect.height)) {
+            Logger.warn("RESIZING FAILED AS SMALLER", new_rect.x, new_rect.y, new_rect.width, new_rect.height, rect.x, rect.y, rect.width, rect.height);
+            queueEvent({
+                name: "attempting_delayed_resize",
+                callback: () => {
+                    this.safelyResizeWindow(rect, _retry-1);
+                }
+            })
+        }
     }
 
 
