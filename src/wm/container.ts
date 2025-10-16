@@ -92,10 +92,40 @@ export default class WindowContainer {
         Logger.log(`=== _shiftCustomSizesAfterRemoval called ===`);
         Logger.log(`Removed index: ${removedIndex}`);
         Logger.log(`Total items after removal: ${this._tiledItems.length}`);
-        Logger.log(`Custom sizes before shift:`, this._customSizes);
+        Logger.log(`Custom sizes Map size: ${this._customSizes.size}`);
 
-        const removedSize = this._customSizes.get(removedIndex);
-        Logger.log(`Removed window's custom size: ${removedSize}`);
+        // Convert Map to readable string
+        let customSizesStr = "{ ";
+        this._customSizes.forEach((size, index) => {
+            customSizesStr += `${index}: ${size}px, `;
+        });
+        customSizesStr += "}";
+        Logger.log(`Custom sizes before shift: ${customSizesStr}`);
+
+        // Calculate the removed window's size (could be custom or flexible)
+        let removedSize = this._customSizes.get(removedIndex);
+
+        if (removedSize === undefined) {
+            // Window didn't have custom size, calculate its flexible size
+            // Count items BEFORE removal (add 1 to current length)
+            const numItemsBeforeRemoval = this._tiledItems.length + 1;
+            let totalCustomSize = 0;
+            let numFlexibleItemsBeforeRemoval = 0;
+
+            this._customSizes.forEach((size, index) => {
+                totalCustomSize += size;
+                // Don't count this in flexible if it's the removed index
+            });
+            numFlexibleItemsBeforeRemoval = numItemsBeforeRemoval - this._customSizes.size;
+
+            const containerSize = this._orientation === Orientation.HORIZONTAL ? this._workArea.width : this._workArea.height;
+            const remainingSize = containerSize - totalCustomSize;
+            removedSize = numFlexibleItemsBeforeRemoval > 0 ? Math.floor(remainingSize / numFlexibleItemsBeforeRemoval) : 0;
+
+            Logger.log(`Removed window was flexible, calculated size: ${removedSize}px (${numFlexibleItemsBeforeRemoval} flexible windows before removal)`);
+        } else {
+            Logger.log(`Removed window had custom size: ${removedSize}px`);
+        }
 
         // Rebuild the custom sizes map with shifted indices
         const newCustomSizes = new Map<number, number>();
@@ -112,28 +142,42 @@ export default class WindowContainer {
             // Skip the removed index
         });
 
-        Logger.log(`Custom sizes after index shift:`, newCustomSizes);
+        Logger.log(`New custom sizes Map size after shift: ${newCustomSizes.size}`);
+        let afterShiftStr = "{ ";
+        newCustomSizes.forEach((size, index) => {
+            afterShiftStr += `${index}: ${size}px, `;
+        });
+        afterShiftStr += "}";
+        Logger.log(`Custom sizes after index shift: ${afterShiftStr}`);
 
-        // Distribute removed window's size evenly among all remaining windows
-        if (removedSize !== undefined && this._tiledItems.length > 1) {
-            // After removal, _tiledItems will have one fewer item
-            const remainingWindowCount = this._tiledItems.length - 1;
-            const sizePerWindow = Math.floor(removedSize / remainingWindowCount);
+        // Distribute removed window's size among remaining custom-sized windows only
+        // Flexible windows will naturally absorb their share through the bounds calculation
+        const remainingWindowCount = this._tiledItems.length;
+        const numCustomWindows = newCustomSizes.size;
 
-            Logger.log(`Distributing ${removedSize}px evenly among ${remainingWindowCount} remaining windows (${sizePerWindow}px each)`);
+        if (removedSize > 0 && remainingWindowCount > 0 && numCustomWindows > 0) {
+            const sizePerCustomWindow = Math.floor(removedSize / numCustomWindows);
 
-            // Add proportional size to each custom-sized window
-            // Flexible windows will automatically get their share through the bounds calculation
+            Logger.log(`Distributing ${removedSize}px among ${numCustomWindows} custom-sized windows (${sizePerCustomWindow}px each)`);
+            Logger.log(`Flexible windows will naturally absorb remaining space`);
+
+            // Add proportional size only to windows that already have custom sizes
             newCustomSizes.forEach((size, index) => {
-                const newSize = size + sizePerWindow;
-                Logger.log(`Index ${index}: ${size}px + ${sizePerWindow}px = ${newSize}px`);
+                const newSize = size + sizePerCustomWindow;
+                Logger.log(`Index ${index}: ${size}px + ${sizePerCustomWindow}px = ${newSize}px`);
                 newCustomSizes.set(index, newSize);
             });
         } else {
-            Logger.log(`Not distributing space - removedSize: ${removedSize}, remainingWindowCount: ${this._tiledItems.length - 1}`);
+            Logger.log(`Not distributing space - removedSize: ${removedSize}, remainingWindows: ${remainingWindowCount}, customWindows: ${numCustomWindows}`);
         }
 
-        Logger.log(`Final custom sizes:`, newCustomSizes);
+        let finalStr = "{ ";
+        newCustomSizes.forEach((size, index) => {
+            finalStr += `${index}: ${size}px, `;
+        });
+        finalStr += "}";
+        Logger.log(`Final custom sizes: ${finalStr}`);
+
         this._customSizes = newCustomSizes;
         Logger.log(`=== _shiftCustomSizesAfterRemoval complete ===`);
     }
@@ -154,15 +198,15 @@ export default class WindowContainer {
         this._tiledWindowLookup.clear()
     }
 
-    tileWindows() {
+    tileWindows(skipRetry: boolean = false) {
         Logger.log("TILING WINDOWS IN CONTAINER")
         Logger.log("WorkArea", this._workArea);
-        this._tileItems()
+        this._tileItems(skipRetry)
 
         return true
     }
 
-    _tileItems() {
+    _tileItems(skipRetry: boolean = false) {
         if (this._tiledItems.length === 0) {
             return;
         }
@@ -172,7 +216,7 @@ export default class WindowContainer {
             if (item instanceof WindowContainer) {
                 item.move(rect);
             } else {
-                item.safelyResizeWindow(rect);
+                item.safelyResizeWindow(rect, 2, skipRetry);
             }
         })
     }
@@ -384,7 +428,7 @@ export default class WindowContainer {
         if (oldSize === undefined) {
             // First time resizing this window, just set the size
             this._customSizes.set(index, newSize);
-            this.tileWindows();
+            this.tileWindows(true);
             return;
         }
 
@@ -423,23 +467,17 @@ export default class WindowContainer {
                 if (!adjacentItem.getWindow().allows_resize()) {
                     Logger.log("Adjacent window doesn't allow resize, reverting");
                     this._customSizes.set(index, oldSize);
-                    oldAdjacentSize = undefined; // Don't check later
                 } else {
                     // Always apply the opposite delta to the adjacent window
                     // This keeps the total width constant
                     this._customSizes.set(adjacentIndex, newAdjacentSize);
-
-                    // Immediately apply resize to adjacent window during drag
-                    const bounds = this.getBounds();
-                    const adjacentRect = bounds[adjacentIndex];
-                    adjacentItem.safelyResizeWindow(adjacentRect);
                 }
             }
         }
 
-        // Don't call full tileWindows() during resize - just update the adjacent window above
-        // Full tiling and validation will happen in handleGrabOpEnd
-        // Skip post-resize validation during real-time resizing
+        // Call tileWindows during resize to update all window positions
+        // Skip retry logic during active resize to avoid jitter
+        this.tileWindows(true);
     }
 
 

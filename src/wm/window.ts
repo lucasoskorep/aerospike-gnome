@@ -125,7 +125,7 @@ export class WindowWrapper {
         }
     }
 
-    safelyResizeWindow(rect: Rect, _retry: number = 2): void {
+    safelyResizeWindow(rect: Rect, _retry: number = 2, _skipRetry: boolean = false): void {
         // Keep minimal logging
         // Note: we allow resizing even during drag operations to support position updates
         // The dragging flag only prevents REORDERING, not position/size changes
@@ -144,12 +144,12 @@ export class WindowWrapper {
         // Logger.info("RESIZING MOVING")
         this._window.move_resize_frame(true, rect.x, rect.y, rect.width, rect.height);
         let new_rect = this._window.get_frame_rect();
-        if ( _retry > 0 && (new_rect.x != rect.x || rect.y != new_rect.y || rect.width < new_rect.width || rect.height < new_rect.height)) {
+        if (!_skipRetry && _retry > 0 && (new_rect.x != rect.x || rect.y != new_rect.y || rect.width < new_rect.width || rect.height < new_rect.height)) {
             Logger.warn("RESIZING FAILED AS SMALLER", new_rect.x, new_rect.y, new_rect.width, new_rect.height, rect.x, rect.y, rect.width, rect.height);
             queueEvent({
                 name: "attempting_delayed_resize",
                 callback: () => {
-                    this.safelyResizeWindow(rect, _retry-1);
+                    this.safelyResizeWindow(rect, _retry-1, _skipRetry);
                 }
             })
         }
