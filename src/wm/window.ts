@@ -104,6 +104,9 @@ export class WindowWrapper {
             this._window.connect("position-changed", (_metaWindow) => {
                 windowManager.handleWindowPositionChanged(this);
             }),
+            this._window.connect("size-changed", (_metaWindow) => {
+                windowManager.handleWindowSizeChanged(this);
+            }),
         );
     }
 

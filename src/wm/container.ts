@@ -16,7 +16,7 @@ export default class WindowContainer {
     _tiledWindowLookup: Map<number, WindowWrapper>;
     _orientation: Orientation = Orientation.HORIZONTAL;
     _workArea: Rect;
-    _customSizes: Map<number, number>;
+    _customSizes: Map<number, number>;  // Maps index to custom width (horizontal) or height (vertical)
 
     constructor(workspaceArea: Rect,) {
         this._tiledItems = [];
@@ -74,9 +74,10 @@ export default class WindowContainer {
     removeWindow(win_id: number): void {
         if (this._tiledWindowLookup.has(win_id)) {
             this._tiledWindowLookup.delete(win_id);
-            this._customSizes.delete(win_id);  // Clean up custom size when window is removed
             const index = this._getIndexOfWindow(win_id)
             this._tiledItems.splice(index, 1);
+            // Shift custom sizes after removed index
+            this._shiftCustomSizesAfterRemoval(index);
         } else {
             for (const item of this._tiledItems) {
                 if (item instanceof WindowContainer) {
@@ -85,6 +86,22 @@ export default class WindowContainer {
             }
         }
         this.tileWindows()
+    }
+
+    _shiftCustomSizesAfterRemoval(removedIndex: number): void {
+        // Rebuild the custom sizes map with shifted indices
+        const newCustomSizes = new Map<number, number>();
+        this._customSizes.forEach((size, index) => {
+            if (index < removedIndex) {
+                // Keep indices before removal
+                newCustomSizes.set(index, size);
+            } else if (index > removedIndex) {
+                // Shift down indices after removal
+                newCustomSizes.set(index - 1, size);
+            }
+            // Skip the removed index
+        });
+        this._customSizes = newCustomSizes;
     }
 
     disconnectSignals(): void {
@@ -139,23 +156,31 @@ export default class WindowContainer {
         let totalCustomHeight = 0;
         let numFlexibleItems = 0;
 
-        this._tiledItems.forEach((item) => {
-            if (item instanceof WindowWrapper && this._customSizes.has(item.getWindowId())) {
-                totalCustomHeight += this._customSizes.get(item.getWindowId())!;
+        this._tiledItems.forEach((item, index) => {
+            if (this._customSizes.has(index)) {
+                totalCustomHeight += this._customSizes.get(index)!;
             } else {
                 numFlexibleItems++;
             }
         });
+
+        // Ensure custom sizes don't exceed container height
+        if (totalCustomHeight > this._workArea.height) {
+            Logger.warn("Custom heights exceed container, resetting all sizes");
+            this._customSizes.clear();
+            totalCustomHeight = 0;
+            numFlexibleItems = this._tiledItems.length;
+        }
 
         const remainingHeight = this._workArea.height - totalCustomHeight;
         const flexHeight = numFlexibleItems > 0 ? Math.floor(remainingHeight / numFlexibleItems) : 0;
 
         // Build the bounds array
         let currentY = this._workArea.y;
-        return this._tiledItems.map((item) => {
+        return this._tiledItems.map((item, index) => {
             let height = flexHeight;
-            if (item instanceof WindowWrapper && this._customSizes.has(item.getWindowId())) {
-                height = this._customSizes.get(item.getWindowId())!;
+            if (this._customSizes.has(index)) {
+                height = this._customSizes.get(index)!;
             }
 
             const rect = {
@@ -174,23 +199,31 @@ export default class WindowContainer {
         let totalCustomWidth = 0;
         let numFlexibleItems = 0;
 
-        this._tiledItems.forEach((item) => {
-            if (item instanceof WindowWrapper && this._customSizes.has(item.getWindowId())) {
-                totalCustomWidth += this._customSizes.get(item.getWindowId())!;
+        this._tiledItems.forEach((item, index) => {
+            if (this._customSizes.has(index)) {
+                totalCustomWidth += this._customSizes.get(index)!;
             } else {
                 numFlexibleItems++;
             }
         });
+
+        // Ensure custom sizes don't exceed container width
+        if (totalCustomWidth > this._workArea.width) {
+            Logger.warn("Custom widths exceed container, resetting all sizes");
+            this._customSizes.clear();
+            totalCustomWidth = 0;
+            numFlexibleItems = this._tiledItems.length;
+        }
 
         const remainingWidth = this._workArea.width - totalCustomWidth;
         const flexWidth = numFlexibleItems > 0 ? Math.floor(remainingWidth / numFlexibleItems) : 0;
 
         // Build the bounds array
         let currentX = this._workArea.x;
-        return this._tiledItems.map((item) => {
+        return this._tiledItems.map((item, index) => {
             let width = flexWidth;
-            if (item instanceof WindowWrapper && this._customSizes.has(item.getWindowId())) {
-                width = this._customSizes.get(item.getWindowId())!;
+            if (this._customSizes.has(index)) {
+                width = this._customSizes.get(index)!;
             }
 
             const rect = {
@@ -227,7 +260,7 @@ export default class WindowContainer {
             Logger.error("Item not found in container during drag op", item.getWindowId());
             return;
         }
-        let new_index = this.getIndexOfItemNested(item);
+        let new_index = original_index;
         this.getBounds().forEach((rect, index) => {
             if (rect.x < x && rect.x + rect.width > x && rect.y < y && rect.y + rect.height > y) {
                 new_index = index;
@@ -253,13 +286,20 @@ export default class WindowContainer {
             return;
         }
 
+        // Find the index of the window
+        const index = this._getIndexOfWindow(win_id);
+        if (index === -1) {
+            Logger.error("Window not found in container during resize");
+            return;
+        }
+
         const rect = window.getRect();
         if (this._orientation === Orientation.HORIZONTAL) {
-            this._customSizes.set(win_id, rect.width);
-            Logger.log(`Window ${win_id} manually resized to width: ${rect.width}`);
+            this._customSizes.set(index, rect.width);
+            Logger.log(`Window at index ${index} manually resized to width: ${rect.width}`);
         } else {
-            this._customSizes.set(win_id, rect.height);
-            Logger.log(`Window ${win_id} manually resized to height: ${rect.height}`);
+            this._customSizes.set(index, rect.height);
+            Logger.log(`Window at index ${index} manually resized to height: ${rect.height}`);
         }
     }
 
@@ -272,6 +312,81 @@ export default class WindowContainer {
                 item.resetAllWindowSizes();
             }
         }
+    }
+
+    windowResizing(win_id: number, resizeOp: Meta.GrabOp): void {
+        const window = this.getWindow(win_id);
+        if (!window) {
+            // Check nested containers
+            for (const item of this._tiledItems) {
+                if (item instanceof WindowContainer) {
+                    item.windowResizing(win_id, resizeOp);
+                }
+            }
+            return;
+        }
+
+        // Check if the resize direction matches the container orientation
+        const isHorizontalResize = resizeOp === Meta.GrabOp.RESIZING_E || resizeOp === Meta.GrabOp.RESIZING_W;
+        const isVerticalResize = resizeOp === Meta.GrabOp.RESIZING_N || resizeOp === Meta.GrabOp.RESIZING_S;
+
+        if ((this._orientation === Orientation.HORIZONTAL && !isHorizontalResize) ||
+            (this._orientation === Orientation.VERTICAL && !isVerticalResize)) {
+            // Resize direction doesn't match container orientation, ignore
+            return;
+        }
+
+        // Find the index of the window
+        const index = this._getIndexOfWindow(win_id);
+        if (index === -1) {
+            return;
+        }
+
+        // Get the new size
+        const rect = window.getRect();
+        const newSize = this._orientation === Orientation.HORIZONTAL ? rect.width : rect.height;
+        const oldSize = this._customSizes.get(index);
+
+        if (oldSize === undefined) {
+            // First time resizing this window, just set the size
+            this._customSizes.set(index, newSize);
+            this.tileWindows();
+            return;
+        }
+
+        // Calculate the delta (how much the window changed)
+        const delta = newSize - oldSize;
+
+        // Determine which adjacent window to adjust based on resize direction
+        let adjacentIndex = -1;
+        if (resizeOp === Meta.GrabOp.RESIZING_E || resizeOp === Meta.GrabOp.RESIZING_S) {
+            // Resizing right/down edge - adjust the next window
+            adjacentIndex = index + 1;
+        } else if (resizeOp === Meta.GrabOp.RESIZING_W || resizeOp === Meta.GrabOp.RESIZING_N) {
+            // Resizing left/up edge - adjust the previous window
+            adjacentIndex = index - 1;
+        }
+
+        // Update current window size
+        this._customSizes.set(index, newSize);
+
+        // Adjust adjacent window only if it has a custom size
+        if (adjacentIndex >= 0 && adjacentIndex < this._tiledItems.length &&
+            this._customSizes.has(adjacentIndex)) {
+            const adjacentSize = this._customSizes.get(adjacentIndex)!;
+            const newAdjacentSize = adjacentSize - delta;
+
+            // Ensure the adjacent window doesn't go below minimum size (e.g., 100px)
+            if (newAdjacentSize >= 100) {
+                this._customSizes.set(adjacentIndex, newAdjacentSize);
+            } else {
+                // Don't allow the resize if it would make adjacent window too small
+                this._customSizes.set(index, oldSize);
+            }
+        }
+
+        // Re-tile all windows in real-time
+        this.tileWindows();
     }
 
 

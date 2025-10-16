@@ -24,6 +24,8 @@ export interface IWindowManager {
 
     handleWindowPositionChanged(winWrap: WindowWrapper): void;
 
+    handleWindowSizeChanged(winWrap: WindowWrapper): void;
+
     syncActiveWindow(): number | null;
 }
 
@@ -45,6 +47,8 @@ export default class WindowManager implements IWindowManager {
     _grabbedWindowMonitor: number = _UNUSED_MONITOR_ID;
     _grabbedWindowId: number = _UNUSED_WINDOW_ID;
     _changingGrabbedMonitor: boolean = false;
+    _resizingWindow: boolean = false;
+    _resizeOp: Meta.GrabOp | null = null;
 
     _showingOverview: boolean = false;
 
@@ -202,7 +206,15 @@ export default class WindowManager implements IWindowManager {
         Logger.log("Grab Op Start", op);
         Logger.log(display, window, op)
         Logger.log(window.get_monitor())
-        this._getWrappedWindow(window)?.startDragging();
+
+        const isResizing = this._isResizeOperation(op);
+        if (isResizing) {
+            this._resizingWindow = true;
+            this._resizeOp = op;
+        } else {
+            this._getWrappedWindow(window)?.startDragging();
+        }
+
         this._grabbedWindowMonitor = window.get_monitor();
         this._grabbedWindowId = window.get_id();
     }
@@ -230,6 +242,8 @@ export default class WindowManager implements IWindowManager {
             }
         }
 
+        this._resizingWindow = false;
+        this._resizeOp = null;
         this._grabbedWindowId = _UNUSED_WINDOW_ID;
         this._getWrappedWindow(window)?.stopDragging();
         this._tileMonitors();
@@ -263,7 +277,7 @@ export default class WindowManager implements IWindowManager {
         let wrapped = this._getAndRemoveWrappedWindow(window);
         if (wrapped === undefined) {
             Logger.error("WINDOW NOT DEFINED")
-            wrapped = new WindowWrapper(window, this.handleWindowMinimized);
+            wrapped = new WindowWrapper(window, this.handleWindowMinimized.bind(this));
             wrapped.connectWindowSignals(this);
         }
         let new_mon = this._monitors.get(monitorId);
@@ -297,6 +311,16 @@ export default class WindowManager implements IWindowManager {
                 this._changingGrabbedMonitor = false
             }
             this._monitors.get(monitorIndex)?.itemDragged(winWrap, mouseX, mouseY);
+        }
+    }
+
+    public handleWindowSizeChanged(winWrap: WindowWrapper): void {
+        if (this._resizingWindow && winWrap.getWindowId() === this._grabbedWindowId) {
+            // Check if this is a valid resize direction for the container
+            const monitor = this._monitors.get(winWrap.getWindow().get_monitor());
+            if (monitor && this._resizeOp) {
+                monitor.windowResizing(winWrap.getWindowId(), this._resizeOp);
+            }
         }
     }
 
@@ -364,7 +388,7 @@ export default class WindowManager implements IWindowManager {
     public addWindowToMonitor(window: Meta.Window) {
 
         Logger.log("ADDING WINDOW TO MONITOR", window, window);
-        var wrapper = new WindowWrapper(window, this.handleWindowMinimized)
+        var wrapper = new WindowWrapper(window, this.handleWindowMinimized.bind(this))
         wrapper.connectWindowSignals(this);
         this._addWindowWrapperToMonitor(wrapper);
 

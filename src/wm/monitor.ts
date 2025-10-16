@@ -68,7 +68,6 @@ export default class Monitor {
         this._workArea = global.workspace_manager.get_active_workspace().get_work_area_for_monitor(this._id);
         const activeWorkspace = global.workspace_manager.get_active_workspace();
         this._workspaces[activeWorkspace.index()].move(this._workArea);
-        this._workspaces[activeWorkspace.index()].tileWindows()
     }
 
     removeWorkspace(workspaceId: number): void {
@@ -97,6 +96,17 @@ export default class Monitor {
     resetAllWindowSizes(): void {
         for (const container of this._workspaces) {
             container.resetAllWindowSizes();
+        }
+    }
+
+    windowResizing(win_id: number, resizeOp: Meta.GrabOp): void {
+        // Find which workspace contains the window and notify it
+        for (const container of this._workspaces) {
+            const win = container.getWindow(win_id);
+            if (win) {
+                container.windowResizing(win_id, resizeOp);
+                return;
+            }
         }
     }
 
