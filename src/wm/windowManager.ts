@@ -199,9 +199,6 @@ export default class WindowManager implements IWindowManager {
 
 
     handleGrabOpBegin(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
-        if (op === Meta.GrabOp.MOVING_UNCONSTRAINED){
-
-        }
         Logger.log("Grab Op Start", op);
         Logger.log(display, window, op)
         Logger.log(window.get_monitor())
@@ -210,9 +207,29 @@ export default class WindowManager implements IWindowManager {
         this._grabbedWindowId = window.get_id();
     }
 
+    _isResizeOperation(op: Meta.GrabOp): boolean {
+        return op === Meta.GrabOp.RESIZING_E ||
+               op === Meta.GrabOp.RESIZING_W ||
+               op === Meta.GrabOp.RESIZING_N ||
+               op === Meta.GrabOp.RESIZING_S ||
+               op === Meta.GrabOp.RESIZING_NE ||
+               op === Meta.GrabOp.RESIZING_NW ||
+               op === Meta.GrabOp.RESIZING_SE ||
+               op === Meta.GrabOp.RESIZING_SW;
+    }
+
     handleGrabOpEnd(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
         Logger.log("Grab Op End ", op);
         Logger.log("primary display", display.get_primary_monitor())
+
+        // Check if this was a resize operation
+        if (this._isResizeOperation(op)) {
+            const monitor = this._monitors.get(window.get_monitor());
+            if (monitor) {
+                monitor.windowManuallyResized(window.get_id());
+            }
+        }
+
         this._grabbedWindowId = _UNUSED_WINDOW_ID;
         this._getWrappedWindow(window)?.stopDragging();
         this._tileMonitors();
@@ -417,6 +434,14 @@ export default class WindowManager implements IWindowManager {
      */
     public syncActiveWindow(): number | null {
         return null;
+    }
+
+    public resetAllWindowSizes(): void {
+        Logger.log("Resetting all custom window sizes");
+        this._monitors.forEach((monitor: Monitor) => {
+            monitor.resetAllWindowSizes();
+        });
+        this._tileMonitors();
     }
 
 

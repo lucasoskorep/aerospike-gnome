@@ -16,12 +16,13 @@ export default class WindowContainer {
     _tiledWindowLookup: Map<number, WindowWrapper>;
     _orientation: Orientation = Orientation.HORIZONTAL;
     _workArea: Rect;
+    _customSizes: Map<number, number>;
 
     constructor(workspaceArea: Rect,) {
-        // this._id = monitorId;
         this._tiledItems = [];
         this._tiledWindowLookup = new Map<number, WindowWrapper>();
         this._workArea = workspaceArea;
+        this._customSizes = new Map<number, number>();
     }
 
 
@@ -34,7 +35,6 @@ export default class WindowContainer {
         // Add window to managed windows
         this._tiledItems.push(winWrap);
         this._tiledWindowLookup.set(winWrap.getWindowId(), winWrap);
-        // winWrap.setParent(this);
         queueEvent({
             name: "tiling-windows",
             callback: () => {
@@ -74,6 +74,7 @@ export default class WindowContainer {
     removeWindow(win_id: number): void {
         if (this._tiledWindowLookup.has(win_id)) {
             this._tiledWindowLookup.delete(win_id);
+            this._customSizes.delete(win_id);  // Clean up custom size when window is removed
             const index = this._getIndexOfWindow(win_id)
             this._tiledItems.splice(index, 1);
         } else {
@@ -104,10 +105,7 @@ export default class WindowContainer {
 
     tileWindows() {
         Logger.log("TILING WINDOWS IN CONTAINER")
-
         Logger.log("WorkArea", this._workArea);
-
-        // Get all windows for current workspaceArea
         this._tileItems()
 
         return true
@@ -137,30 +135,72 @@ export default class WindowContainer {
     }
 
     getVerticalBounds(): Rect[] {
-        const items = this._tiledItems
-        const containerHeight = Math.floor(this._workArea.height / items.length);
-        return items.map((_, index) => {
-            const y = this._workArea.y + (index * containerHeight);
-            return {
+        // Calculate available height after accounting for custom-sized windows
+        let totalCustomHeight = 0;
+        let numFlexibleItems = 0;
+
+        this._tiledItems.forEach((item) => {
+            if (item instanceof WindowWrapper && this._customSizes.has(item.getWindowId())) {
+                totalCustomHeight += this._customSizes.get(item.getWindowId())!;
+            } else {
+                numFlexibleItems++;
+            }
+        });
+
+        const remainingHeight = this._workArea.height - totalCustomHeight;
+        const flexHeight = numFlexibleItems > 0 ? Math.floor(remainingHeight / numFlexibleItems) : 0;
+
+        // Build the bounds array
+        let currentY = this._workArea.y;
+        return this._tiledItems.map((item) => {
+            let height = flexHeight;
+            if (item instanceof WindowWrapper && this._customSizes.has(item.getWindowId())) {
+                height = this._customSizes.get(item.getWindowId())!;
+            }
+
+            const rect = {
                 x: this._workArea.x,
-                y: y,
+                y: currentY,
                 width: this._workArea.width,
-                height: containerHeight
+                height: height
             } as Rect;
+            currentY += height;
+            return rect;
         });
     }
 
     getHorizontalBounds(): Rect[] {
-        const windowWidth = Math.floor(this._workArea.width / this._tiledItems.length);
+        // Calculate available width after accounting for custom-sized windows
+        let totalCustomWidth = 0;
+        let numFlexibleItems = 0;
 
-        return this._tiledItems.map((_, index) => {
-            const x = this._workArea.x + (index * windowWidth);
-            return {
-                x: x,
+        this._tiledItems.forEach((item) => {
+            if (item instanceof WindowWrapper && this._customSizes.has(item.getWindowId())) {
+                totalCustomWidth += this._customSizes.get(item.getWindowId())!;
+            } else {
+                numFlexibleItems++;
+            }
+        });
+
+        const remainingWidth = this._workArea.width - totalCustomWidth;
+        const flexWidth = numFlexibleItems > 0 ? Math.floor(remainingWidth / numFlexibleItems) : 0;
+
+        // Build the bounds array
+        let currentX = this._workArea.x;
+        return this._tiledItems.map((item) => {
+            let width = flexWidth;
+            if (item instanceof WindowWrapper && this._customSizes.has(item.getWindowId())) {
+                width = this._customSizes.get(item.getWindowId())!;
+            }
+
+            const rect = {
+                x: currentX,
                 y: this._workArea.y,
-                width: windowWidth,
+                width: width,
                 height: this._workArea.height
             } as Rect;
+            currentX += width;
+            return rect;
         });
     }
 
@@ -199,6 +239,39 @@ export default class WindowContainer {
             this.tileWindows()
         }
 
+    }
+
+    windowManuallyResized(win_id: number): void {
+        const window = this.getWindow(win_id);
+        if (!window) {
+            // Check nested containers
+            for (const item of this._tiledItems) {
+                if (item instanceof WindowContainer) {
+                    item.windowManuallyResized(win_id);
+                }
+            }
+            return;
+        }
+
+        const rect = window.getRect();
+        if (this._orientation === Orientation.HORIZONTAL) {
+            this._customSizes.set(win_id, rect.width);
+            Logger.log(`Window ${win_id} manually resized to width: ${rect.width}`);
+        } else {
+            this._customSizes.set(win_id, rect.height);
+            Logger.log(`Window ${win_id} manually resized to height: ${rect.height}`);
+        }
+    }
+
+    resetAllWindowSizes(): void {
+        Logger.log("Clearing all custom window sizes in container");
+        this._customSizes.clear();
+        // Also clear nested containers
+        for (const item of this._tiledItems) {
+            if (item instanceof WindowContainer) {
+                item.resetAllWindowSizes();
+            }
+        }
     }
 
 

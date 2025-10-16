@@ -37,5 +37,11 @@
             <description>Keyboard shortcut for triggering action 4</description>
         </key>
 
+        <key name="reset-window-sizes" type="as">
+            <default><![CDATA[['<Alt>z']]]></default>
+            <summary>Reset all window sizes</summary>
+            <description>Remove all custom window sizes and return to equal distribution</description>
+        </key>
+
     </schema>
 </schemalist>
