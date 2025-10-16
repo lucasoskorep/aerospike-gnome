@@ -83,4 +83,15 @@ export default class Monitor {
         this._workspaces[item.getWorkspace()].itemDragged(item, x, y);
     }
 
+    windowManuallyResized(win_id: number): void {
+        // Find which workspace contains the window and notify it
+        for (const container of this._workspaces) {
+            const win = container.getWindow(win_id);
+            if (win) {
+                container.windowManuallyResized(win_id);
+                return;
+            }
+        }
+    }
+
 }

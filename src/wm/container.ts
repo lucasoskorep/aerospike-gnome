@@ -16,12 +16,14 @@ export default class WindowContainer {
     _tiledWindowLookup: Map<number, WindowWrapper>;
     _orientation: Orientation = Orientation.HORIZONTAL;
     _workArea: Rect;
+    _customSizes: Map<number, number>;  // Maps window ID to custom width (horizontal) or height (vertical)
 
     constructor(workspaceArea: Rect,) {
         // this._id = monitorId;
         this._tiledItems = [];
         this._tiledWindowLookup = new Map<number, WindowWrapper>();
         this._workArea = workspaceArea;
+        this._customSizes = new Map<number, number>();
     }
 
 
@@ -74,6 +76,7 @@ export default class WindowContainer {
     removeWindow(win_id: number): void {
         if (this._tiledWindowLookup.has(win_id)) {
             this._tiledWindowLookup.delete(win_id);
+            this._customSizes.delete(win_id);
             const index = this._getIndexOfWindow(win_id)
             this._tiledItems.splice(index, 1);
         } else {
@@ -199,6 +202,28 @@ export default class WindowContainer {
             this.tileWindows()
         }
 
+    }
+
+    windowManuallyResized(win_id: number): void {
+        const window = this.getWindow(win_id);
+        if (!window) {
+            // Check nested containers
+            for (const item of this._tiledItems) {
+                if (item instanceof WindowContainer) {
+                    item.windowManuallyResized(win_id);
+                }
+            }
+            return;
+        }
+
+        const rect = window.getRect();
+        if (this._orientation === Orientation.HORIZONTAL) {
+            this._customSizes.set(win_id, rect.width);
+            Logger.log(`Window ${win_id} manually resized to width: ${rect.width}`);
+        } else {
+            this._customSizes.set(win_id, rect.height);
+            Logger.log(`Window ${win_id} manually resized to height: ${rect.height}`);
+        }
     }
 
 
