@@ -24,11 +24,11 @@ build-package: build
 
 install: build
 	mkdir -p ~/.local/share/gnome-shell/extensions/{{NAME}}@{{DOMAIN}}
-	rm -rf /.local/share/gnome-shell/extensions/{{NAME}}@{{DOMAIN}}/*
+	rm -rf ~/.local/share/gnome-shell/extensions/{{NAME}}@{{DOMAIN}}/*
 	cp -r dist/* ~/.local/share/gnome-shell/extensions/{{NAME}}@{{DOMAIN}}/
 
 run:
-    env MUTTER_DEBUG_DUMMY_MODE_SPECS=1280x720 dbus-run-session -- gnome-shell --nested --wayland
+    env MUTTER_DEBUG_DUMMY_MODE_SPECS=1280x720 dbus-run-session -- gnome-shell --devkit
 
 install-and-run: install run
 
