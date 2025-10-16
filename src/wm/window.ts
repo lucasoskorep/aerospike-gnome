@@ -127,10 +127,8 @@ export class WindowWrapper {
 
     safelyResizeWindow(rect: Rect, _retry: number = 2): void {
         // Keep minimal logging
-        if (this._dragging) {
-            Logger.info("STOPPED RESIZE BECAUSE ITEM IS BEING DRAGGED")
-            return;
-        }
+        // Note: we allow resizing even during drag operations to support position updates
+        // The dragging flag only prevents REORDERING, not position/size changes
         // Logger.log("SAFELY RESIZE", rect.x, rect.y, rect.width, rect.height);
         const actor = this._window.get_compositor_private();
 

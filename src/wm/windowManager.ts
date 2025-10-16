@@ -211,6 +211,7 @@ export default class WindowManager implements IWindowManager {
         if (isResizing) {
             this._resizingWindow = true;
             this._resizeOp = op;
+            // Don't mark as dragging during resize - we need to update positions freely
         } else {
             this._getWrappedWindow(window)?.startDragging();
         }
@@ -290,6 +291,20 @@ export default class WindowManager implements IWindowManager {
             return;
         }
         if (winWrap.getWindowId() === this._grabbedWindowId) {
+            // Check if we're doing a pure NSEW resize - if so, don't allow position-based swapping
+            if (this._resizingWindow && this._resizeOp) {
+                const isPureNSEWResize =
+                    this._resizeOp === Meta.GrabOp.RESIZING_E ||
+                    this._resizeOp === Meta.GrabOp.RESIZING_W ||
+                    this._resizeOp === Meta.GrabOp.RESIZING_N ||
+                    this._resizeOp === Meta.GrabOp.RESIZING_S;
+
+                if (isPureNSEWResize) {
+                    // Skip itemDragged - don't allow swaps during NSEW resize
+                    return;
+                }
+            }
+
             const [mouseX, mouseY, _] = global.get_pointer();
 
             let monitorIndex = -1;

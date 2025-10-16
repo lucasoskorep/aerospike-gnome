@@ -89,19 +89,53 @@ export default class WindowContainer {
     }
 
     _shiftCustomSizesAfterRemoval(removedIndex: number): void {
+        Logger.log(`=== _shiftCustomSizesAfterRemoval called ===`);
+        Logger.log(`Removed index: ${removedIndex}`);
+        Logger.log(`Total items after removal: ${this._tiledItems.length}`);
+        Logger.log(`Custom sizes before shift:`, this._customSizes);
+
+        const removedSize = this._customSizes.get(removedIndex);
+        Logger.log(`Removed window's custom size: ${removedSize}`);
+
         // Rebuild the custom sizes map with shifted indices
         const newCustomSizes = new Map<number, number>();
         this._customSizes.forEach((size, index) => {
             if (index < removedIndex) {
                 // Keep indices before removal
+                Logger.log(`Keeping index ${index} with size ${size}`);
                 newCustomSizes.set(index, size);
             } else if (index > removedIndex) {
                 // Shift down indices after removal
+                Logger.log(`Shifting index ${index} -> ${index - 1} with size ${size}`);
                 newCustomSizes.set(index - 1, size);
             }
             // Skip the removed index
         });
+
+        Logger.log(`Custom sizes after index shift:`, newCustomSizes);
+
+        // Distribute removed window's size evenly among all remaining windows
+        if (removedSize !== undefined && this._tiledItems.length > 1) {
+            // After removal, _tiledItems will have one fewer item
+            const remainingWindowCount = this._tiledItems.length - 1;
+            const sizePerWindow = Math.floor(removedSize / remainingWindowCount);
+
+            Logger.log(`Distributing ${removedSize}px evenly among ${remainingWindowCount} remaining windows (${sizePerWindow}px each)`);
+
+            // Add proportional size to each custom-sized window
+            // Flexible windows will automatically get their share through the bounds calculation
+            newCustomSizes.forEach((size, index) => {
+                const newSize = size + sizePerWindow;
+                Logger.log(`Index ${index}: ${size}px + ${sizePerWindow}px = ${newSize}px`);
+                newCustomSizes.set(index, newSize);
+            });
+        } else {
+            Logger.log(`Not distributing space - removedSize: ${removedSize}, remainingWindowCount: ${this._tiledItems.length - 1}`);
+        }
+
+        Logger.log(`Final custom sizes:`, newCustomSizes);
         this._customSizes = newCustomSizes;
+        Logger.log(`=== _shiftCustomSizesAfterRemoval complete ===`);
     }
 
     disconnectSignals(): void {
@@ -357,6 +391,11 @@ export default class WindowContainer {
         // Calculate the delta (how much the window changed)
         const delta = newSize - oldSize;
 
+        // If delta is 0, the window didn't actually resize (hit its minimum)
+        if (delta === 0) {
+            return;
+        }
+
         // Determine which adjacent window to adjust based on resize direction
         let adjacentIndex = -1;
         if (resizeOp === Meta.GrabOp.RESIZING_E || resizeOp === Meta.GrabOp.RESIZING_S) {
@@ -371,22 +410,36 @@ export default class WindowContainer {
         this._customSizes.set(index, newSize);
 
         // Adjust adjacent window only if it has a custom size
+        // When both windows have custom sizes, always apply opposite delta to maintain total width
+        let oldAdjacentSize: number | undefined = undefined;
         if (adjacentIndex >= 0 && adjacentIndex < this._tiledItems.length &&
             this._customSizes.has(adjacentIndex)) {
-            const adjacentSize = this._customSizes.get(adjacentIndex)!;
-            const newAdjacentSize = adjacentSize - delta;
+            const adjacentItem = this._tiledItems[adjacentIndex];
+            if (adjacentItem instanceof WindowWrapper) {
+                oldAdjacentSize = this._customSizes.get(adjacentIndex)!;
+                const newAdjacentSize = oldAdjacentSize - delta;
 
-            // Ensure the adjacent window doesn't go below minimum size (e.g., 100px)
-            if (newAdjacentSize >= 100) {
-                this._customSizes.set(adjacentIndex, newAdjacentSize);
-            } else {
-                // Don't allow the resize if it would make adjacent window too small
-                this._customSizes.set(index, oldSize);
+                // Check if adjacent window allows resize
+                if (!adjacentItem.getWindow().allows_resize()) {
+                    Logger.log("Adjacent window doesn't allow resize, reverting");
+                    this._customSizes.set(index, oldSize);
+                    oldAdjacentSize = undefined; // Don't check later
+                } else {
+                    // Always apply the opposite delta to the adjacent window
+                    // This keeps the total width constant
+                    this._customSizes.set(adjacentIndex, newAdjacentSize);
+
+                    // Immediately apply resize to adjacent window during drag
+                    const bounds = this.getBounds();
+                    const adjacentRect = bounds[adjacentIndex];
+                    adjacentItem.safelyResizeWindow(adjacentRect);
+                }
             }
         }
 
-        // Re-tile all windows in real-time
-        this.tileWindows();
+        // Don't call full tileWindows() during resize - just update the adjacent window above
+        // Full tiling and validation will happen in handleGrabOpEnd
+        // Skip post-resize validation during real-time resizing
     }
 
 
