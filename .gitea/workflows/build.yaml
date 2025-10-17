@@ -40,7 +40,7 @@ jobs:
         run: just build-package
 
       - name: Upload extension package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: aerospike-extension
           path: aerospike.zip
