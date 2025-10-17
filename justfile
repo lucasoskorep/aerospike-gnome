@@ -35,6 +35,15 @@ install-and-run: install run
 live-debug:
     journalctl /usr/bin/gnome-shell -f -o cat | tee debug.log
 
+test:
+    pnpm test
+
+test-watch:
+    pnpm test:watch
+
+test-coverage:
+    pnpm test:coverage
+
 #pack: build
 #    gnome-extensions pack dist \
 #        --force \
