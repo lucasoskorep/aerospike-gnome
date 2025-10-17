@@ -53,6 +53,11 @@ export default class aerospike extends Extension {
             this.refreshKeybinding('join-with-right');
         });
 
+        this.settings.connect('changed::print-tree', () => {
+            log(`Print tree keybinding changed to: ${this.settings.get_strv('print-tree')}`);
+            this.refreshKeybinding('print-tree');
+        });
+
         this.settings.connect('changed::dropdown-option', () => {
             log(`Dropdown option changed to: ${this.settings.get_string('dropdown-option')}`);
         });
@@ -88,6 +93,11 @@ export default class aerospike extends Extension {
                     Logger.info('Keybinding 4 was pressed!');
                 });
                 break;
+            case 'print-tree':
+                this.bindKeybinding('print-tree', () => {
+                    this.windowManager.printTreeStructure();
+                });
+                break;
         }
     }
 
@@ -113,6 +123,10 @@ export default class aerospike extends Extension {
 
         this.bindKeybinding('join-with-right', () => {
             Logger.info('Keybinding 4 was pressed!');
+        });
+
+        this.bindKeybinding('print-tree', () => {
+            this.windowManager.printTreeStructure();
         });
     }
 

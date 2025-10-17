@@ -37,5 +37,11 @@
             <description>Keyboard shortcut for triggering action 4</description>
         </key>
 
+        <key name="print-tree" type="as">
+            <default><![CDATA[['<Super><Shift>x']]]></default>
+            <summary>Print window tree structure</summary>
+            <description>Prints the current tree of containers and windows per monitor to logs</description>
+        </key>
+
     </schema>
 </schemalist>

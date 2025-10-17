@@ -155,6 +155,15 @@ export default class AerospikeExtensions extends ExtensionPreferences {
             })
         );
 
+        keybindingsGroup.add(
+            new EntryRow({
+                title: _('Print Tree Structure'),
+                settings: settings,
+                bind: 'print-tree',
+                map: keybindingMap
+            })
+        );
+
 
     }
 
