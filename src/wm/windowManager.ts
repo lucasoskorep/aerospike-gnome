@@ -164,10 +164,13 @@ export default class WindowManager implements IWindowManager {
     }
 
     removeAllWindows(): void {
+        // Disconnect signals from minimized windows before clearing
+        this.disconnectMinimizedSignals();
+        this._minimizedItems.clear();
+
         this._monitors.forEach((monitor: Monitor) => {
             monitor.removeAllWindows();
         })
-        this._minimizedItems.clear();
     }
 
 
@@ -253,7 +256,7 @@ export default class WindowManager implements IWindowManager {
         let wrapped = this._getAndRemoveWrappedWindow(window);
         if (wrapped === undefined) {
             Logger.error("WINDOW NOT DEFINED")
-            wrapped = new WindowWrapper(window, this.handleWindowMinimized);
+            wrapped = new WindowWrapper(window, (winWrap) => this.handleWindowMinimized(winWrap));
             wrapped.connectWindowSignals(this);
         }
         let new_mon = this._monitors.get(monitorId);
@@ -354,7 +357,7 @@ export default class WindowManager implements IWindowManager {
     public addWindowToMonitor(window: Meta.Window) {
 
         Logger.log("ADDING WINDOW TO MONITOR", window, window);
-        var wrapper = new WindowWrapper(window, this.handleWindowMinimized)
+        var wrapper = new WindowWrapper(window, (winWrap) => this.handleWindowMinimized(winWrap))
         wrapper.connectWindowSignals(this);
         this._addWindowWrapperToMonitor(wrapper);
 
@@ -463,6 +466,13 @@ export default class WindowManager implements IWindowManager {
 
         for (const monitor of this._monitors.values()) {
             const activeWorkspaceIndex = global.workspace_manager.get_active_workspace().index();
+
+            // Bounds check to prevent accessing invalid workspace
+            if (activeWorkspaceIndex >= monitor._workspaces.length || activeWorkspaceIndex < 0) {
+                Logger.warn(`Active workspace index ${activeWorkspaceIndex} out of bounds for monitor with ${monitor._workspaces.length} workspaces`);
+                continue;
+            }
+
             const workspace = monitor._workspaces[activeWorkspaceIndex];
 
             // Check if the window is directly in the workspace container
