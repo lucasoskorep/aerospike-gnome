@@ -78,9 +78,12 @@ export default class WindowContainer {
 
     removeWindow(win_id: number): void {
         if (this._tiledWindowLookup.has(win_id)) {
+            // Get index before deleting from lookup to avoid race condition
+            const index = this._getIndexOfWindow(win_id);
             this._tiledWindowLookup.delete(win_id);
-            const index = this._getIndexOfWindow(win_id)
-            this._tiledItems.splice(index, 1);
+            if (index !== -1) {
+                this._tiledItems.splice(index, 1);
+            }
         } else {
             for (const item of this._tiledItems) {
                 if (item instanceof WindowContainer) {
