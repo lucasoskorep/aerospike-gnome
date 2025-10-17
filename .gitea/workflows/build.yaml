@@ -1,0 +1,47 @@
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: docker
+    container:
+      image: node:20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm and TypeScript
+        run: npm install -g pnpm typescript@5.8.3
+
+      - name: Install just
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y libglib2.0-dev glib-networking zip
+
+      - name: Install project dependencies
+        run: pnpm install
+
+      - name: Run unit tests
+        run: just test
+
+      - name: Build and package extension
+        run: just build-package
+
+      - name: Upload extension package
+        uses: actions/upload-artifact@v4
+        with:
+          name: aerospike-extension
+          path: aerospike.zip
+          retention-days: 30

@@ -1,5 +1,5 @@
 import { describe, test, expect } from '@jest/globals';
-import type { Rect } from '../utils/rect';
+import type { Rect } from '../utils/rect.js';
 
 describe('Rect Type Tests', () => {
   test('should create a valid Rect object', () => {

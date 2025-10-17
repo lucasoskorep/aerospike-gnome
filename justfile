@@ -44,6 +44,9 @@ test-watch:
 test-coverage:
     pnpm test:coverage
 
+ci-local:
+    act -W .gitea/workflows/build.yaml
+
 #pack: build
 #    gnome-extensions pack dist \
 #        --force \
