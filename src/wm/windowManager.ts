@@ -230,7 +230,7 @@ export default class WindowManager implements IWindowManager {
     }
 
     _getWrappedWindow(window: Meta.Window): WindowWrapper | undefined {
-        let wrapped = undefined;
+        let wrapped: WindowWrapper | undefined = undefined;
         for (const monitor of this._monitors.values()) {
             wrapped = monitor.getWindow(window.get_id());
             if (wrapped !== undefined) {
@@ -241,7 +241,7 @@ export default class WindowManager implements IWindowManager {
     }
 
     _getAndRemoveWrappedWindow(window: Meta.Window): WindowWrapper | undefined {
-        let wrapped = undefined;
+        let wrapped: WindowWrapper | undefined = undefined;
         for (const monitor of this._monitors.values()) {
             wrapped = monitor.getWindow(window.get_id());
             if (wrapped !== undefined) {
