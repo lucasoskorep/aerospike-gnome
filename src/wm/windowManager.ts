@@ -7,6 +7,7 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 // import Mtk from "@girs/mtk-16";
 import {Logger} from "../utils/logger.js";
 import Monitor from "./monitor.js";
+import WindowContainer from "./container.js";
 
 
 export interface IWindowManager {
@@ -417,6 +418,55 @@ export default class WindowManager implements IWindowManager {
      */
     public syncActiveWindow(): number | null {
         return null;
+    }
+
+    /**
+     * Prints the tree structure of all monitors, workspaces, containers, and windows to the logs
+     */
+    public printTreeStructure(): void {
+        Logger.info("=".repeat(80));
+        Logger.info("WINDOW TREE STRUCTURE");
+        Logger.info("=".repeat(80));
+
+        this._monitors.forEach((monitor: Monitor, monitorId: number) => {
+            Logger.info(`Monitor ${monitorId}:`);
+            Logger.info(`  Work Area: x=${monitor._workArea.x}, y=${monitor._workArea.y}, w=${monitor._workArea.width}, h=${monitor._workArea.height}`);
+
+            monitor._workspaces.forEach((workspace, workspaceIndex) => {
+                Logger.info(`  Workspace ${workspaceIndex}:`);
+                Logger.info(`    Orientation: ${workspace._orientation === 0 ? 'HORIZONTAL' : 'VERTICAL'}`);
+                Logger.info(`    Items: ${workspace._tiledItems.length}`);
+
+                this._printContainerTree(workspace, 4);
+            });
+        });
+
+        Logger.info("=".repeat(80));
+    }
+
+    /**
+     * Recursively prints the container tree structure
+     * @param container The container to print
+     * @param indentLevel The indentation level (number of spaces)
+     */
+    private _printContainerTree(container: any, indentLevel: number): void {
+        const indent = " ".repeat(indentLevel);
+
+        container._tiledItems.forEach((item: any, index: number) => {
+            if (item instanceof WindowContainer) {
+                Logger.info(`${indent}[${index}] Container (${item._orientation === 0 ? 'HORIZONTAL' : 'VERTICAL'}):`);
+                Logger.info(`${indent}    Items: ${item._tiledItems.length}`);
+                Logger.info(`${indent}    Work Area: x=${item._workArea.x}, y=${item._workArea.y}, w=${item._workArea.width}, h=${item._workArea.height}`);
+                this._printContainerTree(item, indentLevel + 4);
+            } else {
+                const window = item.getWindow();
+                Logger.info(`${indent}[${index}] Window ID: ${item.getWindowId()}`);
+                Logger.info(`${indent}    Title: "${window.get_title()}"`);
+                Logger.info(`${indent}    Class: ${window.get_wm_class()}`);
+                const rect = item.getRect();
+                Logger.info(`${indent}    Rect: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
+            }
+        });
     }
 
 
