@@ -85,11 +85,6 @@ export class WindowWrapper {
 
                 }
             }),
-            this._window.connect('notify::has-focus', () => {
-                if (this._window.has_focus()) {
-                    windowManager._activeWindowId = windowId;
-                }
-            }),
             this._window.connect('notify::maximized-horizontally', () => {
                 if (this._window.is_maximized()) {
                     Logger.log(`Window maximized: ${windowId}`);

@@ -43,5 +43,11 @@
             <description>Prints the current tree of containers and windows per monitor to logs</description>
         </key>
 
+        <key name="toggle-orientation" type="as">
+            <default><![CDATA[['<Super><Shift>comma']]]></default>
+            <summary>Toggle active container orientation</summary>
+            <description>Toggles the orientation of the container holding the active window between horizontal and vertical</description>
+        </key>
+
     </schema>
 </schemalist>

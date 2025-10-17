@@ -65,6 +65,9 @@ export default class WindowManager implements IWindowManager {
         }
 
         this.captureExistingWindows();
+
+        // Sync the initially focused window
+        this.syncActiveWindow();
     }
 
     instantiateDisplaySignals(): void {
@@ -86,6 +89,9 @@ export default class WindowManager implements IWindowManager {
             }),
             global.display.connect('window-created', (display, window) => {
                 this.handleWindowCreated(display, window);
+            }),
+            global.display.connect('notify::focus-window', () => {
+                this.syncActiveWindow();
             }),
 
             global.display.connect("showing-desktop-changed", () => {
@@ -417,6 +423,81 @@ export default class WindowManager implements IWindowManager {
      * @returns The window ID of the active window, or null if no window is active
      */
     public syncActiveWindow(): number | null {
+        const focusWindow = global.display.focus_window;
+        if (focusWindow) {
+            this._activeWindowId = focusWindow.get_id();
+            Logger.debug(`Active window changed to: ${this._activeWindowId} (${focusWindow.get_title()})`);
+        } else {
+            this._activeWindowId = null;
+            Logger.debug('No active window');
+        }
+        return this._activeWindowId;
+    }
+
+    /**
+     * Toggles the orientation of the active container (the container holding the active window)
+     */
+    public toggleActiveContainerOrientation(): void {
+        if (this._activeWindowId === null) {
+            Logger.warn("No active window, cannot toggle container orientation");
+            return;
+        }
+
+        // Find the active window's container
+        const activeContainer = this._findActiveContainer();
+        if (activeContainer) {
+            activeContainer.toggleOrientation();
+        } else {
+            Logger.warn("Could not find container for active window");
+        }
+    }
+
+    /**
+     * Finds the container that directly contains the active window
+     * @returns The container holding the active window, or null if not found
+     */
+    private _findActiveContainer(): WindowContainer | null {
+        if (this._activeWindowId === null) {
+            return null;
+        }
+
+        for (const monitor of this._monitors.values()) {
+            const activeWorkspaceIndex = global.workspace_manager.get_active_workspace().index();
+            const workspace = monitor._workspaces[activeWorkspaceIndex];
+
+            // Check if the window is directly in the workspace container
+            const windowWrapper = workspace.getWindow(this._activeWindowId);
+            if (windowWrapper) {
+                // Try to find the parent container
+                const container = this._findContainerHoldingWindow(workspace, this._activeWindowId);
+                return container;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Recursively finds the container that directly contains a specific window
+     * @param container The container to search
+     * @param windowId The window ID to find
+     * @returns The container that directly contains the window, or null if not found
+     */
+    private _findContainerHoldingWindow(container: WindowContainer, windowId: number): WindowContainer | null {
+        // Check if this container directly contains the window
+        for (const item of container._tiledItems) {
+            if (item instanceof WindowContainer) {
+                // Recursively search nested containers
+                const result = this._findContainerHoldingWindow(item, windowId);
+                if (result) {
+                    return result;
+                }
+            } else if (item.getWindowId() === windowId) {
+                // Found it! Return this container as it directly holds the window
+                return container;
+            }
+        }
+
         return null;
     }
 
@@ -427,13 +508,24 @@ export default class WindowManager implements IWindowManager {
         Logger.info("=".repeat(80));
         Logger.info("WINDOW TREE STRUCTURE");
         Logger.info("=".repeat(80));
+        Logger.info(`Active Window ID: ${this._activeWindowId ?? 'none'}`);
+        Logger.info("=".repeat(80));
+
+        const activeWorkspaceIndex = global.workspace_manager.get_active_workspace().index();
 
         this._monitors.forEach((monitor: Monitor, monitorId: number) => {
-            Logger.info(`Monitor ${monitorId}:`);
+            const isActiveMonitor = this._activeWindowId !== null &&
+                                   monitor.getWindow(this._activeWindowId) !== undefined;
+            const monitorMarker = isActiveMonitor ? ' *' : '';
+
+            Logger.info(`Monitor ${monitorId}${monitorMarker}:`);
             Logger.info(`  Work Area: x=${monitor._workArea.x}, y=${monitor._workArea.y}, w=${monitor._workArea.width}, h=${monitor._workArea.height}`);
 
             monitor._workspaces.forEach((workspace, workspaceIndex) => {
-                Logger.info(`  Workspace ${workspaceIndex}:`);
+                const isActiveWorkspace = workspaceIndex === activeWorkspaceIndex;
+                const workspaceMarker = isActiveWorkspace && isActiveMonitor ? ' *' : '';
+
+                Logger.info(`  Workspace ${workspaceIndex}${workspaceMarker}:`);
                 Logger.info(`    Orientation: ${workspace._orientation === 0 ? 'HORIZONTAL' : 'VERTICAL'}`);
                 Logger.info(`    Items: ${workspace._tiledItems.length}`);
 
@@ -454,13 +546,21 @@ export default class WindowManager implements IWindowManager {
 
         container._tiledItems.forEach((item: any, index: number) => {
             if (item instanceof WindowContainer) {
-                Logger.info(`${indent}[${index}] Container (${item._orientation === 0 ? 'HORIZONTAL' : 'VERTICAL'}):`);
+                // Check if this container contains the active window
+                const containsActiveWindow = this._activeWindowId !== null &&
+                                            item.getWindow(this._activeWindowId) !== undefined;
+                const containerMarker = containsActiveWindow ? ' *' : '';
+
+                Logger.info(`${indent}[${index}] Container (${item._orientation === 0 ? 'HORIZONTAL' : 'VERTICAL'})${containerMarker}:`);
                 Logger.info(`${indent}    Items: ${item._tiledItems.length}`);
                 Logger.info(`${indent}    Work Area: x=${item._workArea.x}, y=${item._workArea.y}, w=${item._workArea.width}, h=${item._workArea.height}`);
                 this._printContainerTree(item, indentLevel + 4);
             } else {
                 const window = item.getWindow();
-                Logger.info(`${indent}[${index}] Window ID: ${item.getWindowId()}`);
+                const isActiveWindow = this._activeWindowId === item.getWindowId();
+                const windowMarker = isActiveWindow ? ' *' : '';
+
+                Logger.info(`${indent}[${index}] Window ID: ${item.getWindowId()}${windowMarker}`);
                 Logger.info(`${indent}    Title: "${window.get_title()}"`);
                 Logger.info(`${indent}    Class: ${window.get_wm_class()}`);
                 const rect = item.getRect();

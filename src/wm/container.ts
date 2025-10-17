@@ -30,6 +30,14 @@ export default class WindowContainer {
         this.tileWindows();
     }
 
+    toggleOrientation(): void {
+        this._orientation = this._orientation === Orientation.HORIZONTAL
+            ? Orientation.VERTICAL
+            : Orientation.HORIZONTAL;
+        Logger.info(`Container orientation toggled to ${this._orientation === Orientation.HORIZONTAL ? 'HORIZONTAL' : 'VERTICAL'}`);
+        this.tileWindows();
+    }
+
     addWindow(winWrap: WindowWrapper): void {
         // Add window to managed windows
         this._tiledItems.push(winWrap);

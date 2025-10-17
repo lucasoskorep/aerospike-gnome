@@ -164,6 +164,15 @@ export default class AerospikeExtensions extends ExtensionPreferences {
             })
         );
 
+        keybindingsGroup.add(
+            new EntryRow({
+                title: _('Toggle Orientation'),
+                settings: settings,
+                bind: 'toggle-orientation',
+                map: keybindingMap
+            })
+        );
+
 
     }
 

@@ -58,6 +58,11 @@ export default class aerospike extends Extension {
             this.refreshKeybinding('print-tree');
         });
 
+        this.settings.connect('changed::toggle-orientation', () => {
+            log(`Toggle orientation keybinding changed to: ${this.settings.get_strv('toggle-orientation')}`);
+            this.refreshKeybinding('toggle-orientation');
+        });
+
         this.settings.connect('changed::dropdown-option', () => {
             log(`Dropdown option changed to: ${this.settings.get_string('dropdown-option')}`);
         });
@@ -98,6 +103,11 @@ export default class aerospike extends Extension {
                     this.windowManager.printTreeStructure();
                 });
                 break;
+            case 'toggle-orientation':
+                this.bindKeybinding('toggle-orientation', () => {
+                    this.windowManager.toggleActiveContainerOrientation();
+                });
+                break;
         }
     }
 
@@ -127,6 +137,10 @@ export default class aerospike extends Extension {
 
         this.bindKeybinding('print-tree', () => {
             this.windowManager.printTreeStructure();
+        });
+
+        this.bindKeybinding('toggle-orientation', () => {
+            this.windowManager.toggleActiveContainerOrientation();
         });
     }
 
