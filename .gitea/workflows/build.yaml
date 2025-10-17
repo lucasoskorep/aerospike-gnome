@@ -45,3 +45,55 @@ jobs:
           name: aerospike-extension
           path: aerospike.zip
           retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+    container:
+      image: node:20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: aerospike-extension
+
+      - name: Get version from package.json
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Create Gitea Release
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${GITEA_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "tag_name": "${{ steps.get_version.outputs.version }}",
+              "name": "Release ${{ steps.get_version.outputs.version }}",
+              "body": "Automated release of aerospike GNOME extension ${{ steps.get_version.outputs.version }}\n\n## Installation\nDownload aerospike.zip and install it as a GNOME extension."
+            }' \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases"
+
+      - name: Upload Release Asset
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          RELEASE_ID=$(curl -H "Authorization: token ${GITEA_TOKEN}" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${{ steps.get_version.outputs.version }}" | \
+            grep -Po '"id":\s*\K[0-9]+' | head -1)
+
+          curl -X POST \
+            -H "Authorization: token ${GITEA_TOKEN}" \
+            -H "Content-Type: multipart/form-data" \
+            -F "attachment=@aerospike.zip" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=aerospike.zip"
