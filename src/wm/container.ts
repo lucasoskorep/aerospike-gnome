@@ -18,7 +18,6 @@ export default class WindowContainer {
     _workArea: Rect;
 
     constructor(workspaceArea: Rect,) {
-        // this._id = monitorId;
         this._tiledItems = [];
         this._tiledWindowLookup = new Map<number, WindowWrapper>();
         this._workArea = workspaceArea;
@@ -39,10 +38,8 @@ export default class WindowContainer {
     }
 
     addWindow(winWrap: WindowWrapper): void {
-        // Add window to managed windows
         this._tiledItems.push(winWrap);
         this._tiledWindowLookup.set(winWrap.getWindowId(), winWrap);
-        // winWrap.setParent(this);
         queueEvent({
             name: "tiling-windows",
             callback: () => {
@@ -115,7 +112,6 @@ export default class WindowContainer {
 
         Logger.log("WorkArea", this._workArea);
 
-        // Get all windows for current workspaceArea
         this._tileItems()
 
         return true
