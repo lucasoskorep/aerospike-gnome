@@ -12,11 +12,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: node:20
+      image: node:25
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install pnpm and TypeScript
         run: npm install -g pnpm typescript@5.8.3
@@ -40,7 +40,7 @@ jobs:
         run: just build-package
 
       - name: Upload extension package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v6
         with:
           name: aerospike-extension
           path: aerospike.zip
@@ -53,14 +53,14 @@ jobs:
     environment:
       name: production
     container:
-      image: node:20
+      image: node:25
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v7
         with:
           name: aerospike-extension
 
