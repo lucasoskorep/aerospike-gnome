@@ -48,7 +48,7 @@ jobs:
 
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: archlinux
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: production
