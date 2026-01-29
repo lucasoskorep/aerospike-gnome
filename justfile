@@ -8,7 +8,7 @@ packages:
 
 build: packages && build-schemas
     rm -rf dist/*
-    tsc
+    pnpm exec tsc
     cp metadata.json dist/
     cp stylesheet.css dist/
     mkdir -p dist/schemas

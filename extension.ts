@@ -1,5 +1,5 @@
 import Meta from 'gi://Meta';
-import {Extension, ExtensionMetadata} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import Gio from 'gi://Gio';
 import Shell from 'gi://Shell';
@@ -11,7 +11,7 @@ export default class aerospike extends Extension {
     keyBindings: Map<string, number>;
     windowManager: WindowManager;
 
-    constructor(metadata: ExtensionMetadata) {
+    constructor(metadata: ConstructorParameters<typeof Extension>[0]) {
         super(metadata);
         this.settings = this.getSettings('org.gnome.shell.extensions.aerospike');
         this.keyBindings = new Map();
