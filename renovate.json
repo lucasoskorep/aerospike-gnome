@@ -2,5 +2,11 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["actions/upload-artifact", "actions/download-artifact"],
+      "allowedVersions": "<4"
+    }
   ]
 }
