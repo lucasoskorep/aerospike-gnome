@@ -67,8 +67,8 @@ export default class Monitor {
     tileWindows(): void {
         this._workArea = global.workspace_manager.get_active_workspace().get_work_area_for_monitor(this._id);
         const activeWorkspace = global.workspace_manager.get_active_workspace();
+        // move() already calls tileWindows() internally — don't call it again
         this._workspaces[activeWorkspace.index()].move(this._workArea);
-        this._workspaces[activeWorkspace.index()].tileWindows()
     }
 
     removeWorkspace(workspaceId: number): void {

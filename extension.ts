@@ -63,6 +63,11 @@ export default class aerospike extends Extension {
             this.refreshKeybinding('toggle-orientation');
         });
 
+        this.settings.connect('changed::reset-ratios', () => {
+            log(`Reset ratios keybinding changed to: ${this.settings.get_strv('reset-ratios')}`);
+            this.refreshKeybinding('reset-ratios');
+        });
+
         this.settings.connect('changed::dropdown-option', () => {
             log(`Dropdown option changed to: ${this.settings.get_string('dropdown-option')}`);
         });
@@ -108,6 +113,11 @@ export default class aerospike extends Extension {
                     this.windowManager.toggleActiveContainerOrientation();
                 });
                 break;
+            case 'reset-ratios':
+                this.bindKeybinding('reset-ratios', () => {
+                    this.windowManager.resetActiveContainerRatios();
+                });
+                break;
         }
     }
 
@@ -141,6 +151,10 @@ export default class aerospike extends Extension {
 
         this.bindKeybinding('toggle-orientation', () => {
             this.windowManager.toggleActiveContainerOrientation();
+        });
+
+        this.bindKeybinding('reset-ratios', () => {
+            this.windowManager.resetActiveContainerRatios();
         });
     }
 

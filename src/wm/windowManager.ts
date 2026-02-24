@@ -8,6 +8,7 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import {Logger} from "../utils/logger.js";
 import Monitor from "./monitor.js";
 import WindowContainer from "./container.js";
+import {Rect} from "../utils/rect.js";
 
 
 export interface IWindowManager {
@@ -48,6 +49,16 @@ export default class WindowManager implements IWindowManager {
     _changingGrabbedMonitor: boolean = false;
 
     _showingOverview: boolean = false;
+
+    // ── Resize-drag tracking ──────────────────────────────────────────────────
+    _isResizeDrag: boolean = false;
+    _resizeDragWindowId: number = _UNUSED_WINDOW_ID;
+    _resizeDragOp: Meta.GrabOp = Meta.GrabOp.NONE;
+    /** Mouse position at the start of each incremental resize step. */
+    _resizeDragLastMouseX: number = 0;
+    _resizeDragLastMouseY: number = 0;
+    /** Re-entrancy guard: true while tileWindows is propagating position-changed events. */
+    _isTiling: boolean = false;
 
     constructor() {
 
@@ -208,25 +219,65 @@ export default class WindowManager implements IWindowManager {
     }
 
 
-    handleGrabOpBegin(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
-        if (op === Meta.GrabOp.MOVING_UNCONSTRAINED){
+    /**
+     * Returns true if the grab op is a resize operation (any edge or corner).
+     */
+    _isResizeOp(op: Meta.GrabOp): boolean {
+        return op === Meta.GrabOp.RESIZING_E  ||
+               op === Meta.GrabOp.RESIZING_W  ||
+               op === Meta.GrabOp.RESIZING_N  ||
+               op === Meta.GrabOp.RESIZING_S  ||
+               op === Meta.GrabOp.RESIZING_NE ||
+               op === Meta.GrabOp.RESIZING_NW ||
+               op === Meta.GrabOp.RESIZING_SE ||
+               op === Meta.GrabOp.RESIZING_SW;
+    }
 
-        }
+    handleGrabOpBegin(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
         Logger.log("Grab Op Start", op);
-        Logger.log(display, window, op)
-        Logger.log(window.get_monitor())
-        this._getWrappedWindow(window)?.startDragging();
-        this._grabbedWindowMonitor = window.get_monitor();
-        this._grabbedWindowId = window.get_id();
+
+        if (this._isResizeOp(op)) {
+            // ── Resize drag ──────────────────────────────────────────────────
+            Logger.log("Resize drag begin, op=", op);
+            this._isResizeDrag = true;
+            this._resizeDragWindowId = window.get_id();
+            this._resizeDragOp = op;
+            const [startMouseX, startMouseY] = global.get_pointer();
+            this._resizeDragLastMouseX = startMouseX;
+            this._resizeDragLastMouseY = startMouseY;
+            // Mark the window as dragging so safelyResizeWindow skips it while
+            // we tile the other windows in response to ratio changes.
+            this._getWrappedWindow(window)?.startDragging();
+        } else {
+            // ── Move drag (existing behaviour) ───────────────────────────────
+            this._getWrappedWindow(window)?.startDragging();
+            this._grabbedWindowMonitor = window.get_monitor();
+            this._grabbedWindowId = window.get_id();
+        }
     }
 
     handleGrabOpEnd(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
         Logger.log("Grab Op End ", op);
-        Logger.log("primary display", display.get_primary_monitor())
-        this._grabbedWindowId = _UNUSED_WINDOW_ID;
-        this._getWrappedWindow(window)?.stopDragging();
-        this._tileMonitors();
-        Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
+
+        if (this._isResizeDrag) {
+            // ── Resize drag end ──────────────────────────────────────────────
+            Logger.log("Resize drag end, op=", op);
+            this._isResizeDrag = false;
+            this._resizeDragWindowId = _UNUSED_WINDOW_ID;
+            this._resizeDragLastMouseX = 0;
+            this._resizeDragLastMouseY = 0;
+            this._resizeDragOp = Meta.GrabOp.NONE;
+            // Stop suppressing the window, then snap everything to computed ratios
+            this._getWrappedWindow(window)?.stopDragging();
+            this._tileMonitors();
+        } else {
+            // ── Move drag end (existing behaviour) ───────────────────────────
+            Logger.log("primary display", display.get_primary_monitor())
+            this._grabbedWindowId = _UNUSED_WINDOW_ID;
+            this._getWrappedWindow(window)?.stopDragging();
+            this._tileMonitors();
+            Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
+        }
     }
 
     _getWrappedWindow(window: Meta.Window): WindowWrapper | undefined {
@@ -265,9 +316,21 @@ export default class WindowManager implements IWindowManager {
     }
 
     public handleWindowPositionChanged(winWrap: WindowWrapper): void {
+        // Ignore position changes that we triggered ourselves via tileWindows
+        if (this._isTiling) {
+            return;
+        }
         if (this._changingGrabbedMonitor) {
             return;
         }
+
+        // ── Live resize-drag handling ─────────────────────────────────────────
+        if (this._isResizeDrag && winWrap.getWindowId() === this._resizeDragWindowId) {
+            this._handleResizeDragUpdate(winWrap);
+            return;
+        }
+
+        // ── Move-drag handling (existing behaviour) ───────────────────────────
         if (winWrap.getWindowId() === this._grabbedWindowId) {
             const [mouseX, mouseY, _] = global.get_pointer();
 
@@ -281,16 +344,106 @@ export default class WindowManager implements IWindowManager {
                 }
             }
             if (monitorIndex === -1) {
-                return
+                return;
             }
 
             if (monitorIndex !== this._grabbedWindowMonitor) {
                 this._changingGrabbedMonitor = true;
                 this._moveWindowToMonitor(winWrap.getWindow(), monitorIndex);
-                this._changingGrabbedMonitor = false
+                this._changingGrabbedMonitor = false;
             }
-            this._monitors.get(monitorIndex)?.itemDragged(winWrap, mouseX, mouseY);
+            // Guard _isTiling so that tileWindows() calls triggered by itemDragged
+            // (which repositions the displaced window) don't re-enter this handler.
+            this._isTiling = true;
+            try {
+                this._monitors.get(monitorIndex)?.itemDragged(winWrap, mouseX, mouseY);
+            } finally {
+                this._isTiling = false;
+            }
         }
+    }
+
+    /**
+     * Called on every position-changed event while a resize drag is in progress.
+     * Computes the pixel delta from the drag-start rect, maps it to the correct
+     * container boundary, and calls adjustBoundary() for live feedback.
+     */
+    private _handleResizeDragUpdate(winWrap: WindowWrapper): void {
+        const op    = this._resizeDragOp;
+        const winId = winWrap.getWindowId();
+
+        // Read the current mouse position — this is unclamped by the compositor
+        // and always reflects the true user intent, unlike the window's frame rect
+        // which gets clamped when adjacent windows block expansion.
+        const [mouseX, mouseY] = global.get_pointer();
+        const dx = mouseX - this._resizeDragLastMouseX;
+        const dy = mouseY - this._resizeDragLastMouseY;
+
+        if (dx === 0 && dy === 0) return;
+
+        // Update last position first so even if we return early the baseline advances
+        this._resizeDragLastMouseX = mouseX;
+        this._resizeDragLastMouseY = mouseY;
+
+        // Find the container that directly holds this window
+        const container = this._findContainerForWindowAcrossMonitors(winId);
+        if (!container) {
+            Logger.warn("_handleResizeDragUpdate: no container found for window", winId);
+            return;
+        }
+
+        const itemIndex = container._getIndexOfWindow(winId);
+        if (itemIndex === -1) return;
+
+        const isHorizontal = container._orientation === 0; // Orientation.HORIZONTAL
+
+        // Map the mouse delta to the correct boundary.
+        //
+        // East/South edge → boundary AFTER  the item (boundaryIndex = itemIndex)
+        //   positive dx/dy grows this item, shrinks the next one.
+        // West/North edge → boundary BEFORE the item (boundaryIndex = itemIndex - 1)
+        //   positive dx/dy moves the left edge right, growing the left neighbour
+        //   and shrinking this item — so we negate the delta.
+
+        let adjusted = false;
+        if (isHorizontal) {
+            if (op === Meta.GrabOp.RESIZING_E || op === Meta.GrabOp.RESIZING_NE || op === Meta.GrabOp.RESIZING_SE) {
+                adjusted = container.adjustBoundary(itemIndex, dx);
+            } else if (op === Meta.GrabOp.RESIZING_W || op === Meta.GrabOp.RESIZING_NW || op === Meta.GrabOp.RESIZING_SW) {
+                adjusted = container.adjustBoundary(itemIndex - 1, dx);
+            }
+        } else {
+            if (op === Meta.GrabOp.RESIZING_S || op === Meta.GrabOp.RESIZING_SE || op === Meta.GrabOp.RESIZING_SW) {
+                adjusted = container.adjustBoundary(itemIndex, dy);
+            } else if (op === Meta.GrabOp.RESIZING_N || op === Meta.GrabOp.RESIZING_NE || op === Meta.GrabOp.RESIZING_NW) {
+                adjusted = container.adjustBoundary(itemIndex - 1, dy);
+            }
+        }
+
+        // Tile all windows with the updated ratios, guarded so the resulting
+        // position-changed events don't re-enter this handler.
+        if (adjusted) {
+            this._isTiling = true;
+            try {
+                container.tileWindows();
+            } finally {
+                this._isTiling = false;
+            }
+        }
+    }
+
+    /**
+     * Searches all monitors for the WindowContainer that directly holds win_id.
+     */
+    private _findContainerForWindowAcrossMonitors(winId: number): WindowContainer | null {
+        const activeWorkspaceIndex = global.workspace_manager.get_active_workspace().index();
+        for (const monitor of this._monitors.values()) {
+            if (activeWorkspaceIndex >= monitor._workspaces.length) continue;
+            const workspace = monitor._workspaces[activeWorkspaceIndex];
+            const container = workspace.getContainerForWindow(winId);
+            if (container !== null) return container;
+        }
+        return null;
     }
 
 
@@ -372,9 +525,13 @@ export default class WindowManager implements IWindowManager {
     }
 
     _tileMonitors(): void {
-
-        for (const monitor of this._monitors.values()) {
-            monitor.tileWindows()
+        this._isTiling = true;
+        try {
+            for (const monitor of this._monitors.values()) {
+                monitor.tileWindows();
+            }
+        } finally {
+            this._isTiling = false;
         }
     }
 
@@ -450,6 +607,25 @@ export default class WindowManager implements IWindowManager {
         const activeContainer = this._findActiveContainer();
         if (activeContainer) {
             activeContainer.toggleOrientation();
+        } else {
+            Logger.warn("Could not find container for active window");
+        }
+    }
+
+    /**
+     * Resets all split ratios in the active window's container to equal fractions.
+     * Bound to Ctrl+Z by default.
+     */
+    public resetActiveContainerRatios(): void {
+        if (this._activeWindowId === null) {
+            Logger.warn("No active window, cannot reset container ratios");
+            return;
+        }
+
+        const activeContainer = this._findActiveContainer();
+        if (activeContainer) {
+            Logger.info("Resetting container ratios to equal splits");
+            activeContainer.resetRatios();
         } else {
             Logger.warn("Could not find container for active window");
         }

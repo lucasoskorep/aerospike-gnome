@@ -99,6 +99,9 @@ export class WindowWrapper {
             this._window.connect("position-changed", (_metaWindow) => {
                 windowManager.handleWindowPositionChanged(this);
             }),
+            this._window.connect("size-changed", (_metaWindow) => {
+                windowManager.handleWindowPositionChanged(this);
+            }),
         );
     }
 
@@ -117,35 +120,41 @@ export class WindowWrapper {
         }
     }
 
-    safelyResizeWindow(rect: Rect, _retry: number = 2): void {
-        // Keep minimal logging
+    safelyResizeWindow(rect: Rect, _retry: number = 3): void {
         if (this._dragging) {
-            Logger.info("STOPPED RESIZE BECAUSE ITEM IS BEING DRAGGED")
+            Logger.info("STOPPED RESIZE BECAUSE ITEM IS BEING DRAGGED");
             return;
         }
-        // Logger.log("SAFELY RESIZE", rect.x, rect.y, rect.width, rect.height);
-        const actor = this._window.get_compositor_private();
 
+        const actor = this._window.get_compositor_private() as Clutter.Actor | null;
         if (!actor) {
             Logger.log("No actor available, can't resize safely yet");
             return;
         }
-        let windowActor = this._window.get_compositor_private() as Clutter.Actor;
-        if (!windowActor) return;
-        windowActor.remove_all_transitions();
-        // Logger.info("MOVING")
-        this._window.move_frame(true, rect.x, rect.y);
-        // Logger.info("RESIZING MOVING")
+
+        actor.remove_all_transitions();
+
+        // Single call: move + resize atomically
         this._window.move_resize_frame(true, rect.x, rect.y, rect.width, rect.height);
-        let new_rect = this._window.get_frame_rect();
-        if ( _retry > 0 && (new_rect.x != rect.x || rect.y != new_rect.y || rect.width < new_rect.width || rect.height < new_rect.height)) {
-            Logger.warn("RESIZING FAILED AS SMALLER", new_rect.x, new_rect.y, new_rect.width, new_rect.height, rect.x, rect.y, rect.width, rect.height);
+
+        const new_rect = this._window.get_frame_rect();
+        const TOLERANCE = 2; // pixels — allow compositor rounding
+        const mismatch =
+            Math.abs(new_rect.x - rect.x) > TOLERANCE ||
+            Math.abs(new_rect.y - rect.y) > TOLERANCE ||
+            Math.abs(new_rect.width  - rect.width)  > TOLERANCE ||
+            Math.abs(new_rect.height - rect.height) > TOLERANCE;
+
+        if (_retry > 0 && mismatch) {
+            Logger.warn("RESIZE MISMATCH, retrying",
+                `want(${rect.x},${rect.y},${rect.width},${rect.height})`,
+                `got(${new_rect.x},${new_rect.y},${new_rect.width},${new_rect.height})`);
             queueEvent({
-                name: "attempting_delayed_resize",
+                name: `delayed_resize_${this.getWindowId()}`,
                 callback: () => {
-                    this.safelyResizeWindow(rect, _retry-1);
+                    this.safelyResizeWindow(rect, _retry - 1);
                 }
-            })
+            }, 50);
         }
     }
 

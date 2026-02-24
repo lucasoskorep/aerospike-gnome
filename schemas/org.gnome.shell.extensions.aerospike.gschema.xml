@@ -49,5 +49,18 @@
             <description>Toggles the orientation of the container holding the active window between horizontal and vertical</description>
         </key>
 
+        <key name="reset-ratios" type="as">
+            <default><![CDATA[['<Primary>z']]]></default>
+            <summary>Reset container ratios to equal splits</summary>
+            <description>Resets all window size ratios in the active window's container to equal splits</description>
+        </key>
+
+        <key name="min-window-size-percent" type="d">
+            <default>0.10</default>
+            <range min="0.01" max="0.49"/>
+            <summary>Minimum window size percentage</summary>
+            <description>Minimum fraction of a container that any single window may occupy when resizing boundaries</description>
+        </key>
+
     </schema>
 </schemalist>
