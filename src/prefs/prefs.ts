@@ -173,6 +173,49 @@ export default class AerospikeExtensions extends ExtensionPreferences {
             })
         );
 
+        keybindingsGroup.add(
+            new EntryRow({
+                title: _('Reset Container Ratios to Equal'),
+                settings: settings,
+                bind: 'reset-ratios',
+                map: keybindingMap
+            })
+        );
+
+        // Create sizing group
+        const sizingGroup = new Adw.PreferencesGroup({
+            title: _('Window Sizing'),
+        });
+        page.add(sizingGroup);
+
+        // Minimum window size percentage spinner
+        const minSizeRow = new Adw.ActionRow({
+            title: _('Minimum Window Size'),
+            subtitle: _('Smallest fraction of a container any window may occupy when resizing (e.g. 0.10 = 10%)'),
+        });
+        sizingGroup.add(minSizeRow);
+
+        const minSizeSpin = new Gtk.SpinButton({
+            adjustment: new Gtk.Adjustment({
+                lower: 0.01,
+                upper: 0.49,
+                step_increment: 0.01,
+                page_increment: 0.05,
+                value: settings.get_double('min-window-size-percent'),
+            }),
+            digits: 2,
+            valign: Gtk.Align.CENTER,
+        });
+        minSizeRow.add_suffix(minSizeSpin);
+        minSizeRow.set_activatable_widget(minSizeSpin);
+
+        minSizeSpin.connect('value-changed', () => {
+            settings.set_double('min-window-size-percent', minSizeSpin.get_value());
+        });
+
+        settings.connect('changed::min-window-size-percent', () => {
+            minSizeSpin.set_value(settings.get_double('min-window-size-percent'));
+        });
 
     }
 
