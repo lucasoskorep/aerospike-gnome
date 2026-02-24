@@ -20,6 +20,7 @@ export default class aerospike extends Extension {
 
     enable() {
         Logger.log("STARTING AEROSPIKE!")
+        this.windowManager._settings = this.settings;
         this.bindSettings();
         this.setupKeybindings();
         this.windowManager.enable()

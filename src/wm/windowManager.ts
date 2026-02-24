@@ -1,5 +1,5 @@
 import Meta from "gi://Meta";
-// import Gio from "gi://Gio";
+import Gio from "gi://Gio";
 // import GLib from "gi://GLib";
 
 import {WindowWrapper} from './window.js';
@@ -60,9 +60,13 @@ export default class WindowManager implements IWindowManager {
     /** Re-entrancy guard: true while tileWindows is propagating position-changed events. */
     _isTiling: boolean = false;
 
-    constructor() {
+    _settings: Gio.Settings | null = null;
 
+    constructor() {}
 
+    /** Returns the live min-ratio value from settings, falling back to 0.10. */
+    private _getMinRatio(): number {
+        return this._settings?.get_double('min-window-size-percent') ?? 0.10;
     }
 
     public enable(): void {
@@ -405,18 +409,19 @@ export default class WindowManager implements IWindowManager {
         //   positive dx/dy moves the left edge right, growing the left neighbour
         //   and shrinking this item — so we negate the delta.
 
+        const minRatio = this._getMinRatio();
         let adjusted = false;
         if (isHorizontal) {
             if (op === Meta.GrabOp.RESIZING_E || op === Meta.GrabOp.RESIZING_NE || op === Meta.GrabOp.RESIZING_SE) {
-                adjusted = container.adjustBoundary(itemIndex, dx);
+                adjusted = container.adjustBoundary(itemIndex, dx, minRatio);
             } else if (op === Meta.GrabOp.RESIZING_W || op === Meta.GrabOp.RESIZING_NW || op === Meta.GrabOp.RESIZING_SW) {
-                adjusted = container.adjustBoundary(itemIndex - 1, dx);
+                adjusted = container.adjustBoundary(itemIndex - 1, dx, minRatio);
             }
         } else {
             if (op === Meta.GrabOp.RESIZING_S || op === Meta.GrabOp.RESIZING_SE || op === Meta.GrabOp.RESIZING_SW) {
-                adjusted = container.adjustBoundary(itemIndex, dy);
+                adjusted = container.adjustBoundary(itemIndex, dy, minRatio);
             } else if (op === Meta.GrabOp.RESIZING_N || op === Meta.GrabOp.RESIZING_NE || op === Meta.GrabOp.RESIZING_NW) {
-                adjusted = container.adjustBoundary(itemIndex - 1, dy);
+                adjusted = container.adjustBoundary(itemIndex - 1, dy, minRatio);
             }
         }
 

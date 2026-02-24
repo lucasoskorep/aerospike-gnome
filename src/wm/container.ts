@@ -40,15 +40,11 @@ export default class WindowContainer {
      */
     _splitRatios: number[];
 
-    /** Minimum fraction any child may occupy (read from settings, default 0.10). */
-    _minRatio: number;
-
-    constructor(workspaceArea: Rect, minRatio: number = 0.10) {
+    constructor(workspaceArea: Rect) {
         this._tiledItems = [];
         this._tiledWindowLookup = new Map<number, WindowWrapper>();
         this._workArea = workspaceArea;
         this._splitRatios = [];
-        this._minRatio = minRatio;
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -245,7 +241,7 @@ export default class WindowContainer {
      * Returns true if the adjustment was applied, false if it was rejected
      * (e.g. out of bounds index or clamping would violate minimum).
      */
-    adjustBoundary(boundaryIndex: number, deltaPixels: number): boolean {
+    adjustBoundary(boundaryIndex: number, deltaPixels: number, minRatio: number = 0.10): boolean {
         if (boundaryIndex < 0 || boundaryIndex >= this._tiledItems.length - 1) {
             Logger.warn(`adjustBoundary: invalid boundaryIndex ${boundaryIndex}`);
             return false;
@@ -255,7 +251,6 @@ export default class WindowContainer {
         if (totalDim === 0) return false;
 
         const ratioDelta = deltaPixels / totalDim;
-        const minRatio = this._minRatio;
 
         const newLeft  = this._splitRatios[boundaryIndex]     + ratioDelta;
         const newRight = this._splitRatios[boundaryIndex + 1] - ratioDelta;
