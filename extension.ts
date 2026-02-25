@@ -15,7 +15,7 @@ export default class aerospike extends Extension {
         super(metadata);
         this.settings = this.getSettings('org.gnome.shell.extensions.aerospike');
         this.keyBindings = new Map();
-        this.windowManager = new WindowManager();
+        this.windowManager = new WindowManager(this.settings);
     }
 
     enable() {
@@ -30,37 +30,25 @@ export default class aerospike extends Extension {
         this.removeKeybindings()
     }
 
+    private keybindingActions(): Record<string, () => void> {
+        return {
+            'move-left':          () => { Logger.info('Keybinding 1 was pressed!'); },
+            'move-right':         () => { Logger.info('Keybinding 2 was pressed!'); },
+            'join-with-left':     () => { Logger.info('Keybinding 3 was pressed!'); },
+            'join-with-right':    () => { Logger.info('Keybinding 4 was pressed!'); },
+            'print-tree':         () => { this.windowManager.printTreeStructure(); },
+            'toggle-orientation': () => { this.windowManager.toggleActiveContainerOrientation(); },
+            'reset-ratios':       () => { this.windowManager.resetActiveContainerRatios(); },
+        };
+    }
 
     private bindSettings() {
-        // Monitor settings changes
-        this.settings.connect('changed::move-left', () => {
-            log(`Keybinding 1 changed to: ${this.settings.get_strv('move-left')}`);
-            this.refreshKeybinding('move-left');
-        });
-
-        this.settings.connect('changed::move-right', () => {
-            log(`Keybinding 2 changed to: ${this.settings.get_strv('move-right')}`);
-            this.refreshKeybinding('move-right');
-        });
-
-        this.settings.connect('changed::join-with-left', () => {
-            log(`Keybinding 3 changed to: ${this.settings.get_strv('join-with-left')}`);
-            this.refreshKeybinding('join-with-left');
-        });
-
-        this.settings.connect('changed::join-with-right', () => {
-            log(`Keybinding 4 changed to: ${this.settings.get_strv('join-with-right')}`);
-            this.refreshKeybinding('join-with-right');
-        });
-
-        this.settings.connect('changed::print-tree', () => {
-            log(`Print tree keybinding changed to: ${this.settings.get_strv('print-tree')}`);
-            this.refreshKeybinding('print-tree');
-        });
-
-        this.settings.connect('changed::toggle-orientation', () => {
-            log(`Toggle orientation keybinding changed to: ${this.settings.get_strv('toggle-orientation')}`);
-            this.refreshKeybinding('toggle-orientation');
+        const keybindings = Object.keys(this.keybindingActions());
+        keybindings.forEach(name => {
+            this.settings.connect(`changed::${name}`, () => {
+                log(`${name} keybinding changed to: ${this.settings.get_strv(name)}`);
+                this.refreshKeybinding(name);
+            });
         });
 
         this.settings.connect('changed::dropdown-option', () => {
@@ -71,44 +59,15 @@ export default class aerospike extends Extension {
             log(`Color selection changed to: ${this.settings.get_string('color-selection')}`);
         });
     }
+
     private refreshKeybinding(settingName: string) {
         if (this.keyBindings.has(settingName)) {
             Main.wm.removeKeybinding(settingName);
             this.keyBindings.delete(settingName);
         }
 
-        switch (settingName) {
-            case 'move-left':
-                this.bindKeybinding('move-left', () => {
-                    Logger.info('Keybinding 1 was pressed!');
-                });
-                break;
-            case 'move-right':
-                this.bindKeybinding('move-right', () => {
-                    Logger.info('Keybinding 2 was pressed!');
-                });
-                break;
-            case 'join-with-left':
-                this.bindKeybinding('join-with-left', () => {
-                    Logger.info('Keybinding 3 was pressed!');
-                });
-                break;
-            case 'join-with-right':
-                this.bindKeybinding('join-with-right', () => {
-                    Logger.info('Keybinding 4 was pressed!');
-                });
-                break;
-            case 'print-tree':
-                this.bindKeybinding('print-tree', () => {
-                    this.windowManager.printTreeStructure();
-                });
-                break;
-            case 'toggle-orientation':
-                this.bindKeybinding('toggle-orientation', () => {
-                    this.windowManager.toggleActiveContainerOrientation();
-                });
-                break;
-        }
+        const action = this.keybindingActions()[settingName];
+        if (action) this.bindKeybinding(settingName, action);
     }
 
     private removeKeybindings() {
@@ -119,29 +78,10 @@ export default class aerospike extends Extension {
     }
 
     private setupKeybindings() {
-        this.bindKeybinding('move-left', () => {
-            Logger.info('Keybinding 1 was pressed!');
-        });
-
-        this.bindKeybinding('move-right', () => {
-            Logger.info('Keybinding 2 was pressed!');
-        });
-
-        this.bindKeybinding('join-with-left', () => {
-            Logger.info('Keybinding 3 was pressed!');
-        });
-
-        this.bindKeybinding('join-with-right', () => {
-            Logger.info('Keybinding 4 was pressed!');
-        });
-
-        this.bindKeybinding('print-tree', () => {
-            this.windowManager.printTreeStructure();
-        });
-
-        this.bindKeybinding('toggle-orientation', () => {
-            this.windowManager.toggleActiveContainerOrientation();
-        });
+        const actions = this.keybindingActions();
+        for (const [name, action] of Object.entries(actions)) {
+            this.bindKeybinding(name, action);
+        }
     }
 
     private bindKeybinding(settingName: string, callback: () => void) {
@@ -161,7 +101,4 @@ export default class aerospike extends Extension {
 
         this.keyBindings.set(settingName, keyBindingAction);
     }
-
-
-
 }
