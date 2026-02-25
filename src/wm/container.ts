@@ -54,6 +54,30 @@ export default class WindowContainer {
         this._splitRatios = equalRatios(this._tiledItems.length);
     }
 
+    /**
+     * Called after a new item has been pushed onto _tiledItems.
+     * The new window (last slot) gets 1/n of the space; existing windows
+     * are scaled down proportionally so their ratios relative to each other
+     * are preserved and the total remains 1.0.
+     *
+     * e.g. [0.33, 0.166, 0.5] + new → new=0.25, existing scaled by 0.75
+     *      → [0.2475, 0.1245, 0.375, 0.25]
+     */
+    private _addRatioForNewWindow(): void {
+        const n = this._tiledItems.length;
+        if (n <= 1) {
+            this._splitRatios = [1.0];
+            return;
+        }
+        const newRatio = 1 / n;
+        const scale    = 1 - newRatio; // existing windows share this fraction
+        const scaled   = this._splitRatios.map(r => r * scale);
+        // Absorb all floating-point drift into the last slot so sum is exactly 1.0
+        const partialSum = scaled.reduce((a, b) => a + b, 0) + newRatio;
+        scaled[scaled.length - 1] += (1.0 - partialSum);
+        this._splitRatios = [...scaled, newRatio];
+    }
+
     /** Total dimension for the active orientation (width for H, height for V). */
     private _totalDimension(): number {
         return this._orientation === Orientation.HORIZONTAL
@@ -79,7 +103,7 @@ export default class WindowContainer {
     addWindow(winWrap: WindowWrapper): void {
         this._tiledItems.push(winWrap);
         this._tiledWindowLookup.set(winWrap.getWindowId(), winWrap);
-        this._resetRatios();
+        this._addRatioForNewWindow();
         queueEvent({
             name: "tiling-windows",
             callback: () => {
