@@ -1,19 +1,16 @@
 import Meta from "gi://Meta";
-// import Gio from "gi://Gio";
-// import GLib from "gi://GLib";
+import Gio from "gi://Gio";
 
 import {WindowWrapper} from './window.js';
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
-// import Mtk from "@girs/mtk-16";
 import {Logger} from "../utils/logger.js";
 import Monitor from "./monitor.js";
 import WindowContainer from "./container.js";
+import {Rect} from "../utils/rect.js";
 
 
 export interface IWindowManager {
     _activeWindowId: number | null;
-
-    // addWindow(window: Meta.Window): void;
 
     handleWindowClosed(winWrap: WindowWrapper): void;
 
@@ -29,8 +26,8 @@ export interface IWindowManager {
 }
 
 
-const _UNUSED_MONITOR_ID = -1
-const _UNUSED_WINDOW_ID = -1
+const _UNUSED_MONITOR_ID = -1;
+const _UNUSED_WINDOW_ID  = -1;
 
 export default class WindowManager implements IWindowManager {
     _displaySignals: number[] = [];
@@ -40,23 +37,29 @@ export default class WindowManager implements IWindowManager {
 
     _activeWindowId: number | null = null;
     _monitors: Map<number, Monitor> = new Map<number, Monitor>();
-
     _minimizedItems: Map<number, WindowWrapper> = new Map<number, WindowWrapper>();
 
     _grabbedWindowMonitor: number = _UNUSED_MONITOR_ID;
     _grabbedWindowId: number = _UNUSED_WINDOW_ID;
     _changingGrabbedMonitor: boolean = false;
-
     _showingOverview: boolean = false;
 
-    constructor() {
+    // ── Resize-drag tracking ──────────────────────────────────────────────────
+    _isResizeDrag: boolean = false;
+    _resizeDragWindowId: number = _UNUSED_WINDOW_ID;
+    _resizeDragOp: Meta.GrabOp = Meta.GrabOp.NONE;
+    _resizeDragLastMouseX: number = 0;
+    _resizeDragLastMouseY: number = 0;
+    _isTiling: boolean = false;
 
+    private readonly _settings: Gio.Settings;
 
+    constructor(settings: Gio.Settings) {
+        this._settings = settings;
     }
 
     public enable(): void {
         Logger.log("Starting Aerospike Window Manager");
-        // Connect window signals
         this.instantiateDisplaySignals();
 
         const mon_count = global.display.get_n_monitors();
@@ -65,8 +68,6 @@ export default class WindowManager implements IWindowManager {
         }
 
         this.captureExistingWindows();
-
-        // Sync the initially focused window
         this.syncActiveWindow();
     }
 
@@ -93,7 +94,6 @@ export default class WindowManager implements IWindowManager {
             global.display.connect('notify::focus-window', () => {
                 this.syncActiveWindow();
             }),
-
             global.display.connect("showing-desktop-changed", () => {
                 Logger.log("SHOWING DESKTOP CHANGED");
             }),
@@ -104,13 +104,7 @@ export default class WindowManager implements IWindowManager {
             global.display.connect("in-fullscreen-changed", () => {
                 Logger.log("IN FULL SCREEN CHANGED");
             }),
-        )
-
-        // this._windowManagerSignals = [
-        //     global.window_manager.connect("show-tile-preview", (_, _metaWindow, _rect, _num) => {
-        //         Logger.log("SHOW TITLE PREVIEW!")
-        //     }),
-        // ];
+        );
 
         this._workspaceManagerSignals = [
             global.workspace_manager.connect("showing-desktop-changed", () => {
@@ -135,44 +129,30 @@ export default class WindowManager implements IWindowManager {
 
         this._overviewSignals = [
             Main.overview.connect("hiding", () => {
-                // this.fromOverview = true;
                 Logger.log("HIDING OVERVIEW")
                 this._showingOverview = false;
                 this._tileMonitors();
-                // const eventObj = {
-                //     name: "focus-after-overview",
-                //     callback: () => {
-                //         Logger.log("FOCUSING AFTER OVERVIEW");
-                //     },
-                // };
-                // this.queueEvent(eventObj);
             }),
             Main.overview.connect("showing", () => {
                 this._showingOverview = true;
                 Logger.log("SHOWING OVERVIEW");
             }),
         ];
-
-
     }
 
     public disable(): void {
         Logger.log("DISABLED AEROSPIKE WINDOW MANAGER!")
-        // Disconnect the focus signal and remove any existing borders
         this.disconnectSignals();
         this.removeAllWindows();
     }
 
     removeAllWindows(): void {
-        // Disconnect signals from minimized windows before clearing
         this.disconnectMinimizedSignals();
         this._minimizedItems.clear();
-
         this._monitors.forEach((monitor: Monitor) => {
             monitor.removeAllWindows();
         })
     }
-
 
     disconnectSignals(): void {
         this.disconnectDisplaySignals();
@@ -207,35 +187,61 @@ export default class WindowManager implements IWindowManager {
         })
     }
 
+    _isResizeOp(op: Meta.GrabOp): boolean {
+        return op === Meta.GrabOp.RESIZING_E  ||
+               op === Meta.GrabOp.RESIZING_W  ||
+               op === Meta.GrabOp.RESIZING_N  ||
+               op === Meta.GrabOp.RESIZING_S  ||
+               op === Meta.GrabOp.RESIZING_NE ||
+               op === Meta.GrabOp.RESIZING_NW ||
+               op === Meta.GrabOp.RESIZING_SE ||
+               op === Meta.GrabOp.RESIZING_SW;
+    }
 
     handleGrabOpBegin(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
-        if (op === Meta.GrabOp.MOVING_UNCONSTRAINED){
-
-        }
         Logger.log("Grab Op Start", op);
-        Logger.log(display, window, op)
-        Logger.log(window.get_monitor())
-        this._getWrappedWindow(window)?.startDragging();
-        this._grabbedWindowMonitor = window.get_monitor();
-        this._grabbedWindowId = window.get_id();
+
+        if (this._isResizeOp(op)) {
+            Logger.log("Resize drag begin, op=", op);
+            this._isResizeDrag = true;
+            this._resizeDragWindowId = window.get_id();
+            this._resizeDragOp = op;
+            const [startMouseX, startMouseY] = global.get_pointer();
+            this._resizeDragLastMouseX = startMouseX;
+            this._resizeDragLastMouseY = startMouseY;
+            this._getWrappedWindow(window)?.startDragging();
+        } else {
+            this._getWrappedWindow(window)?.startDragging();
+            this._grabbedWindowMonitor = window.get_monitor();
+            this._grabbedWindowId = window.get_id();
+        }
     }
 
     handleGrabOpEnd(display: Meta.Display, window: Meta.Window, op: Meta.GrabOp): void {
         Logger.log("Grab Op End ", op);
-        Logger.log("primary display", display.get_primary_monitor())
-        this._grabbedWindowId = _UNUSED_WINDOW_ID;
-        this._getWrappedWindow(window)?.stopDragging();
-        this._tileMonitors();
-        Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
+
+        if (this._isResizeDrag) {
+            Logger.log("Resize drag end, op=", op);
+            this._isResizeDrag = false;
+            this._resizeDragWindowId = _UNUSED_WINDOW_ID;
+            this._resizeDragLastMouseX = 0;
+            this._resizeDragLastMouseY = 0;
+            this._resizeDragOp = Meta.GrabOp.NONE;
+            this._getWrappedWindow(window)?.stopDragging();
+            this._tileMonitors();
+        } else {
+            this._grabbedWindowId = _UNUSED_WINDOW_ID;
+            this._getWrappedWindow(window)?.stopDragging();
+            this._tileMonitors();
+            Logger.info("monitor_start and monitor_end", this._grabbedWindowMonitor, window.get_monitor());
+        }
     }
 
     _getWrappedWindow(window: Meta.Window): WindowWrapper | undefined {
         let wrapped: WindowWrapper | undefined = undefined;
         for (const monitor of this._monitors.values()) {
             wrapped = monitor.getWindow(window.get_id());
-            if (wrapped !== undefined) {
-                break;
-            }
+            if (wrapped !== undefined) break;
         }
         return wrapped;
     }
@@ -265,9 +271,13 @@ export default class WindowManager implements IWindowManager {
     }
 
     public handleWindowPositionChanged(winWrap: WindowWrapper): void {
-        if (this._changingGrabbedMonitor) {
+        if (this._isTiling || this._changingGrabbedMonitor) return;
+
+        if (this._isResizeDrag && winWrap.getWindowId() === this._resizeDragWindowId) {
+            this._handleResizeDragUpdate(winWrap);
             return;
         }
+
         if (winWrap.getWindowId() === this._grabbedWindowId) {
             const [mouseX, mouseY, _] = global.get_pointer();
 
@@ -280,19 +290,82 @@ export default class WindowManager implements IWindowManager {
                     break;
                 }
             }
-            if (monitorIndex === -1) {
-                return
-            }
+            if (monitorIndex === -1) return;
 
             if (monitorIndex !== this._grabbedWindowMonitor) {
                 this._changingGrabbedMonitor = true;
                 this._moveWindowToMonitor(winWrap.getWindow(), monitorIndex);
-                this._changingGrabbedMonitor = false
+                this._changingGrabbedMonitor = false;
             }
-            this._monitors.get(monitorIndex)?.itemDragged(winWrap, mouseX, mouseY);
+
+            this._isTiling = true;
+            try {
+                this._monitors.get(monitorIndex)?.itemDragged(winWrap, mouseX, mouseY);
+            } finally {
+                this._isTiling = false;
+            }
         }
     }
 
+    private _handleResizeDragUpdate(winWrap: WindowWrapper): void {
+        const op    = this._resizeDragOp;
+        const winId = winWrap.getWindowId();
+
+        const [mouseX, mouseY] = global.get_pointer();
+        const dx = mouseX - this._resizeDragLastMouseX;
+        const dy = mouseY - this._resizeDragLastMouseY;
+
+        if (dx === 0 && dy === 0) return;
+
+        this._resizeDragLastMouseX = mouseX;
+        this._resizeDragLastMouseY = mouseY;
+
+        const container = this._findContainerForWindowAcrossMonitors(winId);
+        if (!container) {
+            Logger.warn("_handleResizeDragUpdate: no container found for window", winId);
+            return;
+        }
+
+        const itemIndex = container._getIndexOfWindow(winId);
+        if (itemIndex === -1) return;
+
+        const isHorizontal = container._orientation === 0;
+
+        // E/S edge → boundary after the item; W/N edge → boundary before it.
+        let adjusted = false;
+        if (isHorizontal) {
+            if (op === Meta.GrabOp.RESIZING_E || op === Meta.GrabOp.RESIZING_NE || op === Meta.GrabOp.RESIZING_SE) {
+                adjusted = container.adjustBoundary(itemIndex, dx);
+            } else if (op === Meta.GrabOp.RESIZING_W || op === Meta.GrabOp.RESIZING_NW || op === Meta.GrabOp.RESIZING_SW) {
+                adjusted = container.adjustBoundary(itemIndex - 1, dx);
+            }
+        } else {
+            if (op === Meta.GrabOp.RESIZING_S || op === Meta.GrabOp.RESIZING_SE || op === Meta.GrabOp.RESIZING_SW) {
+                adjusted = container.adjustBoundary(itemIndex, dy);
+            } else if (op === Meta.GrabOp.RESIZING_N || op === Meta.GrabOp.RESIZING_NE || op === Meta.GrabOp.RESIZING_NW) {
+                adjusted = container.adjustBoundary(itemIndex - 1, dy);
+            }
+        }
+
+        if (adjusted) {
+            this._isTiling = true;
+            try {
+                container.tileWindows();
+            } finally {
+                this._isTiling = false;
+            }
+        }
+    }
+
+    private _findContainerForWindowAcrossMonitors(winId: number): WindowContainer | null {
+        const activeWorkspaceIndex = global.workspace_manager.get_active_workspace().index();
+        for (const monitor of this._monitors.values()) {
+            if (activeWorkspaceIndex >= monitor._workspaces.length) continue;
+            const container = monitor._workspaces[activeWorkspaceIndex].getContainerForWindow(winId);
+            if (container !== null) return container;
+        }
+        return null;
+    }
 
     public handleWindowMinimized(winWrap: WindowWrapper): void {
         const monitor_id = winWrap.getWindow().get_monitor()
@@ -306,7 +379,6 @@ export default class WindowManager implements IWindowManager {
         this._addWindowWrapperToMonitor(winWrap);
         this._tileMonitors()
     }
-
 
     public handleWindowChangedWorkspace(winWrap: WindowWrapper): void {
         const monitor = winWrap.getWindow().get_monitor();
@@ -326,41 +398,26 @@ export default class WindowManager implements IWindowManager {
         this._tileMonitors();
     }
 
-
     handleWindowCreated(display: Meta.Display, window: Meta.Window) {
         Logger.log("WINDOW CREATED ON DISPLAY", window, display);
-        if (!this._isWindowTileable(window)) {
-            return;
-        }
+        if (!this._isWindowTileable(window)) return;
         Logger.log("WINDOW IS TILABLE");
         this.addWindowToMonitor(window);
     }
 
-
-    /**
-     * Handle window closed event
-     */
     handleWindowClosed(window: WindowWrapper): void {
-
         const mon_id = window._window.get_monitor();
-
         this._monitors.get(mon_id)?.removeWindow(window);
-
         window.disconnectWindowSignals()
-        // Remove from managed windows
         this.syncActiveWindow();
-        // Retile remaining windows
         this._tileMonitors();
     }
 
-
     public addWindowToMonitor(window: Meta.Window) {
-
         Logger.log("ADDING WINDOW TO MONITOR", window, window);
         var wrapper = new WindowWrapper(window, (winWrap) => this.handleWindowMinimized(winWrap))
         wrapper.connectWindowSignals(this);
         this._addWindowWrapperToMonitor(wrapper);
-
     }
 
     _addWindowWrapperToMonitor(winWrap: WindowWrapper) {
@@ -372,9 +429,13 @@ export default class WindowManager implements IWindowManager {
     }
 
     _tileMonitors(): void {
-
-        for (const monitor of this._monitors.values()) {
-            monitor.tileWindows()
+        this._isTiling = true;
+        try {
+            for (const monitor of this._monitors.values()) {
+                monitor.tileWindows();
+            }
+        } finally {
+            this._isTiling = false;
         }
     }
 
@@ -382,7 +443,7 @@ export default class WindowManager implements IWindowManager {
         "org.gnome.Shell.Extensions",
     ]
 
-    _isWindowTilingBlocked(window: Meta.Window) : boolean {
+    _isWindowTilingBlocked(window: Meta.Window): boolean {
         Logger.info("title", window.get_title());
         Logger.info("description", window.get_description());
         Logger.info("class", window.get_wm_class());
@@ -397,17 +458,12 @@ export default class WindowManager implements IWindowManager {
     }
 
     _isWindowTileable(window: Meta.Window) {
+        if (!window || !window.get_compositor_private()) return false;
+        if (this._isWindowTilingBlocked(window)) return false;
 
-        if (!window || !window.get_compositor_private()) {
-            return false;
-        }
-        if (this._isWindowTilingBlocked(window)) {
-            return false;
-        }
         const windowType = window.get_window_type();
         Logger.log("WINDOW TILING CHECK",);
 
-        // Skip certain types of windows
         return !window.is_skip_taskbar() &&
             windowType !== Meta.WindowType.DESKTOP &&
             windowType !== Meta.WindowType.DOCK &&
@@ -417,14 +473,6 @@ export default class WindowManager implements IWindowManager {
             windowType !== Meta.WindowType.MENU;
     }
 
-    /**
-     * Synchronizes the active window with GNOME's currently active window
-     *
-     * This function queries GNOME Shell for the current focused window and
-     * updates the extension's active window tracking to match.
-     *
-     * @returns The window ID of the active window, or null if no window is active
-     */
     public syncActiveWindow(): number | null {
         const focusWindow = global.display.focus_window;
         if (focusWindow) {
@@ -437,83 +485,33 @@ export default class WindowManager implements IWindowManager {
         return this._activeWindowId;
     }
 
-    /**
-     * Toggles the orientation of the active container (the container holding the active window)
-     */
     public toggleActiveContainerOrientation(): void {
         if (this._activeWindowId === null) {
             Logger.warn("No active window, cannot toggle container orientation");
             return;
         }
-
-        // Find the active window's container
-        const activeContainer = this._findActiveContainer();
-        if (activeContainer) {
-            activeContainer.toggleOrientation();
+        const container = this._findContainerForWindowAcrossMonitors(this._activeWindowId);
+        if (container) {
+            container.toggleOrientation();
         } else {
             Logger.warn("Could not find container for active window");
         }
     }
 
-    /**
-     * Finds the container that directly contains the active window
-     * @returns The container holding the active window, or null if not found
-     */
-    private _findActiveContainer(): WindowContainer | null {
+    public resetActiveContainerRatios(): void {
         if (this._activeWindowId === null) {
-            return null;
+            Logger.warn("No active window, cannot reset container ratios");
+            return;
         }
-
-        for (const monitor of this._monitors.values()) {
-            const activeWorkspaceIndex = global.workspace_manager.get_active_workspace().index();
-
-            // Bounds check to prevent accessing invalid workspace
-            if (activeWorkspaceIndex >= monitor._workspaces.length || activeWorkspaceIndex < 0) {
-                Logger.warn(`Active workspace index ${activeWorkspaceIndex} out of bounds for monitor with ${monitor._workspaces.length} workspaces`);
-                continue;
-            }
-
-            const workspace = monitor._workspaces[activeWorkspaceIndex];
-
-            // Check if the window is directly in the workspace container
-            const windowWrapper = workspace.getWindow(this._activeWindowId);
-            if (windowWrapper) {
-                // Try to find the parent container
-                const container = this._findContainerHoldingWindow(workspace, this._activeWindowId);
-                return container;
-            }
+        const container = this._findContainerForWindowAcrossMonitors(this._activeWindowId);
+        if (container) {
+            Logger.info("Resetting container ratios to equal splits");
+            container.resetRatios();
+        } else {
+            Logger.warn("Could not find container for active window");
         }
-
-        return null;
     }
 
-    /**
-     * Recursively finds the container that directly contains a specific window
-     * @param container The container to search
-     * @param windowId The window ID to find
-     * @returns The container that directly contains the window, or null if not found
-     */
-    private _findContainerHoldingWindow(container: WindowContainer, windowId: number): WindowContainer | null {
-        // Check if this container directly contains the window
-        for (const item of container._tiledItems) {
-            if (item instanceof WindowContainer) {
-                // Recursively search nested containers
-                const result = this._findContainerHoldingWindow(item, windowId);
-                if (result) {
-                    return result;
-                }
-            } else if (item.getWindowId() === windowId) {
-                // Found it! Return this container as it directly holds the window
-                return container;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Prints the tree structure of all monitors, workspaces, containers, and windows to the logs
-     */
     public printTreeStructure(): void {
         Logger.info("=".repeat(80));
         Logger.info("WINDOW TREE STRUCTURE");
@@ -526,19 +524,15 @@ export default class WindowManager implements IWindowManager {
         this._monitors.forEach((monitor: Monitor, monitorId: number) => {
             const isActiveMonitor = this._activeWindowId !== null &&
                                    monitor.getWindow(this._activeWindowId) !== undefined;
-            const monitorMarker = isActiveMonitor ? ' *' : '';
 
-            Logger.info(`Monitor ${monitorId}${monitorMarker}:`);
+            Logger.info(`Monitor ${monitorId}${isActiveMonitor ? ' *' : ''}:`);
             Logger.info(`  Work Area: x=${monitor._workArea.x}, y=${monitor._workArea.y}, w=${monitor._workArea.width}, h=${monitor._workArea.height}`);
 
             monitor._workspaces.forEach((workspace, workspaceIndex) => {
                 const isActiveWorkspace = workspaceIndex === activeWorkspaceIndex;
-                const workspaceMarker = isActiveWorkspace && isActiveMonitor ? ' *' : '';
-
-                Logger.info(`  Workspace ${workspaceIndex}${workspaceMarker}:`);
+                Logger.info(`  Workspace ${workspaceIndex}${isActiveWorkspace && isActiveMonitor ? ' *' : ''}:`);
                 Logger.info(`    Orientation: ${workspace._orientation === 0 ? 'HORIZONTAL' : 'VERTICAL'}`);
                 Logger.info(`    Items: ${workspace._tiledItems.length}`);
-
                 this._printContainerTree(workspace, 4);
             });
         });
@@ -546,31 +540,20 @@ export default class WindowManager implements IWindowManager {
         Logger.info("=".repeat(80));
     }
 
-    /**
-     * Recursively prints the container tree structure
-     * @param container The container to print
-     * @param indentLevel The indentation level (number of spaces)
-     */
-    private _printContainerTree(container: any, indentLevel: number): void {
+    private _printContainerTree(container: WindowContainer, indentLevel: number): void {
         const indent = " ".repeat(indentLevel);
 
-        container._tiledItems.forEach((item: any, index: number) => {
+        container._tiledItems.forEach((item, index) => {
             if (item instanceof WindowContainer) {
-                // Check if this container contains the active window
-                const containsActiveWindow = this._activeWindowId !== null &&
-                                            item.getWindow(this._activeWindowId) !== undefined;
-                const containerMarker = containsActiveWindow ? ' *' : '';
-
-                Logger.info(`${indent}[${index}] Container (${item._orientation === 0 ? 'HORIZONTAL' : 'VERTICAL'})${containerMarker}:`);
+                const containsActive = this._activeWindowId !== null &&
+                                       item.getWindow(this._activeWindowId) !== undefined;
+                Logger.info(`${indent}[${index}] Container (${item._orientation === 0 ? 'HORIZONTAL' : 'VERTICAL'})${containsActive ? ' *' : ''}:`);
                 Logger.info(`${indent}    Items: ${item._tiledItems.length}`);
                 Logger.info(`${indent}    Work Area: x=${item._workArea.x}, y=${item._workArea.y}, w=${item._workArea.width}, h=${item._workArea.height}`);
                 this._printContainerTree(item, indentLevel + 4);
             } else {
                 const window = item.getWindow();
-                const isActiveWindow = this._activeWindowId === item.getWindowId();
-                const windowMarker = isActiveWindow ? ' *' : '';
-
-                Logger.info(`${indent}[${index}] Window ID: ${item.getWindowId()}${windowMarker}`);
+                Logger.info(`${indent}[${index}] Window ID: ${item.getWindowId()}${this._activeWindowId === item.getWindowId() ? ' *' : ''}`);
                 Logger.info(`${indent}    Title: "${window.get_title()}"`);
                 Logger.info(`${indent}    Class: ${window.get_wm_class()}`);
                 const rect = item.getRect();
@@ -578,6 +561,4 @@ export default class WindowManager implements IWindowManager {
             }
         });
     }
-
-
 }

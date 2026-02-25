@@ -1,12 +1,9 @@
 import {WindowWrapper} from "./window.js";
 import {Rect} from "../utils/rect.js";
-import queueEvent from "../utils/events.js";
 import {Logger} from "../utils/logger.js";
 import Meta from "gi://Meta";
-import Mtk from "@girs/mtk-17";
 
 import WindowContainer from "./container.js";
-import Window = Meta.Window;
 
 export default class Monitor {
 
@@ -20,7 +17,7 @@ export default class Monitor {
         this._workArea = workspace.get_work_area_for_monitor(this._id);
         Logger.log("CREATING MONITOR", monitorId);
         Logger.log("WorkArea", this._workArea.x, this._workArea.y, this._workArea.width, this._workArea.height);
-        const workspaceCount = global.workspace_manager.get_n_workspaces()
+        const workspaceCount = global.workspace_manager.get_n_workspaces();
         Logger.log("Workspace Count", workspaceCount);
         for (let i = 0; i < workspaceCount; i++) {
             this._workspaces.push(new WindowContainer(this._workArea));
@@ -42,9 +39,7 @@ export default class Monitor {
     getWindow(windowId: number): WindowWrapper | undefined {
         for (const container of this._workspaces) {
             const win = container.getWindow(windowId);
-            if (win) {
-                return win;
-            }
+            if (win) return win;
         }
         return undefined;
     }
@@ -52,8 +47,7 @@ export default class Monitor {
     removeWindow(winWrap: WindowWrapper) {
         const windowId = winWrap.getWindowId();
         for (const container of this._workspaces) {
-            const win = container.getWindow(windowId);
-            if (win) {
+            if (container.getWindow(windowId)) {
                 container.removeWindow(windowId);
             }
         }
@@ -65,10 +59,10 @@ export default class Monitor {
     }
 
     tileWindows(): void {
-        this._workArea = global.workspace_manager.get_active_workspace().get_work_area_for_monitor(this._id);
         const activeWorkspace = global.workspace_manager.get_active_workspace();
+        this._workArea = activeWorkspace.get_work_area_for_monitor(this._id);
+        // move() calls tileWindows() internally
         this._workspaces[activeWorkspace.index()].move(this._workArea);
-        this._workspaces[activeWorkspace.index()].tileWindows()
     }
 
     removeWorkspace(workspaceId: number): void {
@@ -82,5 +76,4 @@ export default class Monitor {
     itemDragged(item: WindowWrapper, x: number, y: number): void {
         this._workspaces[item.getWorkspace()].itemDragged(item, x, y);
     }
-
 }

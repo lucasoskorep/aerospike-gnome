@@ -49,5 +49,11 @@
             <description>Toggles the orientation of the container holding the active window between horizontal and vertical</description>
         </key>
 
+        <key name="reset-ratios" type="as">
+            <default><![CDATA[['<Primary>z']]]></default>
+            <summary>Reset container ratios to equal splits</summary>
+            <description>Resets all window size ratios in the active window's container to equal splits</description>
+        </key>
+
     </schema>
 </schemalist>
