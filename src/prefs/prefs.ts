@@ -173,6 +173,14 @@ export default class AerospikeExtensions extends ExtensionPreferences {
             })
         );
 
+        keybindingsGroup.add(
+            new EntryRow({
+                title: _('Reset Container Ratios to Equal'),
+                settings: settings,
+                bind: 'reset-ratios',
+                map: keybindingMap
+            })
+        );
 
     }
 
