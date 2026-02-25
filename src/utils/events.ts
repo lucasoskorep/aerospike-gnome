@@ -1,20 +1,21 @@
 import GLib from "gi://GLib";
 
-
 export type QueuedEvent = {
     name: string;
     callback: () => void;
 }
 
-const queuedEvents: QueuedEvent[] = [];
+const pendingEvents: Map<string, QueuedEvent> = new Map();
 
 export default function queueEvent(event: QueuedEvent, interval = 200) {
-    queuedEvents.push(event);
+    pendingEvents.set(event.name, event);
+
     GLib.timeout_add(GLib.PRIORITY_DEFAULT, interval, () => {
-        const e = queuedEvents.pop()
-        if (e) {
+        const e = pendingEvents.get(event.name);
+        if (e && e === event) {
+            pendingEvents.delete(event.name);
             e.callback();
         }
-        return queuedEvents.length !== 0;
+        return GLib.SOURCE_REMOVE;
     });
 }
