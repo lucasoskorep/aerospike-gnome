@@ -19,10 +19,15 @@ export default class aerospike extends Extension {
     }
 
     enable() {
-        Logger.log("STARTING AEROSPIKE!")
-        this.bindSettings();
-        this.setupKeybindings();
-        this.windowManager.enable()
+        try {
+            Logger.log("STARTING AEROSPIKE!")
+            this.bindSettings();
+            this.setupKeybindings();
+            this.windowManager.enable()
+            Logger.log("AEROSPIKE ENABLED SUCCESSFULLY")
+        } catch (e) {
+            Logger.error("AEROSPIKE ENABLE FAILED", e);
+        }
     }
 
     disable() {
@@ -39,6 +44,7 @@ export default class aerospike extends Extension {
             'print-tree':         () => { this.windowManager.printTreeStructure(); },
             'toggle-orientation': () => { this.windowManager.toggleActiveContainerOrientation(); },
             'reset-ratios':       () => { this.windowManager.resetActiveContainerRatios(); },
+            'toggle-tabbed':      () => { this.windowManager.toggleActiveContainerTabbed(); },
         };
     }
 

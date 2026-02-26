@@ -20,25 +20,38 @@ jest.mock('../utils/events.js', () => ({
 
 describe('Container Logic Tests', () => {
   describe('Orientation Toggle Logic', () => {
-    enum Orientation {
+    enum Layout {
       HORIZONTAL = 0,
       VERTICAL = 1,
+      TABBED = 2,
     }
 
-    const toggleOrientation = (current: Orientation): Orientation => {
-      return current === Orientation.HORIZONTAL
-        ? Orientation.VERTICAL
-        : Orientation.HORIZONTAL;
+    const toggleOrientation = (current: Layout): Layout => {
+      if (current === Layout.TABBED) return Layout.HORIZONTAL;
+      return current === Layout.HORIZONTAL
+        ? Layout.VERTICAL
+        : Layout.HORIZONTAL;
     };
 
     test('should toggle from HORIZONTAL to VERTICAL', () => {
-      const result = toggleOrientation(Orientation.HORIZONTAL);
-      expect(result).toBe(Orientation.VERTICAL);
+      const result = toggleOrientation(Layout.HORIZONTAL);
+      expect(result).toBe(Layout.VERTICAL);
     });
 
     test('should toggle from VERTICAL to HORIZONTAL', () => {
-      const result = toggleOrientation(Orientation.VERTICAL);
-      expect(result).toBe(Orientation.HORIZONTAL);
+      const result = toggleOrientation(Layout.VERTICAL);
+      expect(result).toBe(Layout.HORIZONTAL);
+    });
+
+    test('should toggle from TABBED to HORIZONTAL', () => {
+      const result = toggleOrientation(Layout.TABBED);
+      expect(result).toBe(Layout.HORIZONTAL);
+    });
+
+    test('enum reverse mapping should return string names', () => {
+      expect(Layout[Layout.HORIZONTAL]).toBe('HORIZONTAL');
+      expect(Layout[Layout.VERTICAL]).toBe('VERTICAL');
+      expect(Layout[Layout.TABBED]).toBe('TABBED');
     });
   });
 
@@ -97,6 +110,71 @@ describe('Container Logic Tests', () => {
       expect(bounds[0].y).toBe(50);
       expect(bounds[0].width).toBe(800);
       expect(bounds[0].height).toBe(600);
+    });
+  });
+
+  describe('Tabbed Bounds Calculation', () => {
+    const TAB_BAR_HEIGHT = 24;
+
+    test('should give all items the same content rect in tabbed mode', () => {
+      const workArea = { x: 100, y: 0, width: 1000, height: 500 };
+      const itemCount = 3;
+
+      const contentRect = {
+        x: workArea.x,
+        y: workArea.y + TAB_BAR_HEIGHT,
+        width: workArea.width,
+        height: workArea.height - TAB_BAR_HEIGHT,
+      };
+
+      const bounds = Array.from({ length: itemCount }, () => contentRect);
+
+      expect(bounds.length).toBe(3);
+      // All bounds should be identical
+      bounds.forEach(b => {
+        expect(b.x).toBe(100);
+        expect(b.y).toBe(TAB_BAR_HEIGHT);
+        expect(b.width).toBe(1000);
+        expect(b.height).toBe(500 - TAB_BAR_HEIGHT);
+      });
+    });
+
+    test('tab bar rect should occupy top of work area', () => {
+      const workArea = { x: 200, y: 50, width: 800, height: 600 };
+
+      const tabBarRect = {
+        x: workArea.x,
+        y: workArea.y,
+        width: workArea.width,
+        height: TAB_BAR_HEIGHT,
+      };
+
+      expect(tabBarRect.x).toBe(200);
+      expect(tabBarRect.y).toBe(50);
+      expect(tabBarRect.width).toBe(800);
+      expect(tabBarRect.height).toBe(TAB_BAR_HEIGHT);
+    });
+
+    test('active tab index should clamp after removal', () => {
+      let activeTabIndex = 2;
+      const itemCount = 2; // after removing one from 3
+
+      if (activeTabIndex >= itemCount) {
+        activeTabIndex = itemCount - 1;
+      }
+
+      expect(activeTabIndex).toBe(1);
+    });
+
+    test('active tab index should stay at 0 when first item removed', () => {
+      let activeTabIndex = 0;
+      const itemCount = 2; // after removing one from 3
+
+      if (activeTabIndex >= itemCount) {
+        activeTabIndex = itemCount - 1;
+      }
+
+      expect(activeTabIndex).toBe(0);
     });
   });
 

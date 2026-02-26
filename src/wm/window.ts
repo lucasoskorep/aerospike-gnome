@@ -47,6 +47,25 @@ export class WindowWrapper {
         return this._window.get_frame_rect();
     }
 
+    getTabLabel(): string {
+        const appName = this._window.get_wm_class() ?? '';
+        const title = this._window.get_title() ?? 'Untitled';
+        if (appName && appName.toLowerCase() !== title.toLowerCase()) {
+            return `${appName} | ${title}`;
+        }
+        return title;
+    }
+
+    hideWindow(): void {
+        const actor = this._window.get_compositor_private() as Clutter.Actor | null;
+        if (actor) actor.hide();
+    }
+
+    showWindow(): void {
+        const actor = this._window.get_compositor_private() as Clutter.Actor | null;
+        if (actor) actor.show();
+    }
+
     startDragging(): void {
         this._dragging = true;
     }

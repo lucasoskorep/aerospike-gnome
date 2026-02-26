@@ -5,7 +5,7 @@ import {WindowWrapper} from './window.js';
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import {Logger} from "../utils/logger.js";
 import Monitor from "./monitor.js";
-import WindowContainer from "./container.js";
+import WindowContainer, {Layout} from "./container.js";
 import {Rect} from "../utils/rect.js";
 
 
@@ -44,7 +44,7 @@ export default class WindowManager implements IWindowManager {
     _changingGrabbedMonitor: boolean = false;
     _showingOverview: boolean = false;
 
-    // ── Resize-drag tracking ──────────────────────────────────────────────────
+    // -- Resize-drag tracking --------------------------------------------------
     _isResizeDrag: boolean = false;
     _resizeDragWindowId: number = _UNUSED_WINDOW_ID;
     _resizeDragOp: Meta.GrabOp = Meta.GrabOp.NONE;
@@ -132,10 +132,16 @@ export default class WindowManager implements IWindowManager {
                 Logger.log("HIDING OVERVIEW")
                 this._showingOverview = false;
                 this._tileMonitors();
+                for (const monitor of this._monitors.values()) {
+                    monitor.showTabBars();
+                }
             }),
             Main.overview.connect("showing", () => {
                 this._showingOverview = true;
                 Logger.log("SHOWING OVERVIEW");
+                for (const monitor of this._monitors.values()) {
+                    monitor.hideTabBars();
+                }
             }),
         ];
     }
@@ -329,7 +335,7 @@ export default class WindowManager implements IWindowManager {
         const itemIndex = container._getIndexOfWindow(winId);
         if (itemIndex === -1) return;
 
-        const isHorizontal = container._orientation === 0;
+        const isHorizontal = container._orientation === Layout.ACC_HORIZONTAL;
 
         // E/S edge → boundary after the item; W/N edge → boundary before it.
         let adjusted = false;
@@ -350,7 +356,7 @@ export default class WindowManager implements IWindowManager {
         if (adjusted) {
             this._isTiling = true;
             try {
-                container.tileWindows();
+                container.drawWindows();
             } finally {
                 this._isTiling = false;
             }
@@ -434,6 +440,8 @@ export default class WindowManager implements IWindowManager {
             for (const monitor of this._monitors.values()) {
                 monitor.tileWindows();
             }
+        } catch (e) {
+            Logger.error("_tileMonitors FAILED", e);
         } finally {
             this._isTiling = false;
         }
@@ -512,6 +520,29 @@ export default class WindowManager implements IWindowManager {
         }
     }
 
+    public toggleActiveContainerTabbed(): void {
+        if (this._activeWindowId === null) {
+            Logger.warn("No active window, cannot toggle tabbed mode");
+            return;
+        }
+        const container = this._findContainerForWindowAcrossMonitors(this._activeWindowId);
+        if (container) {
+            if (container.isTabbed()) {
+                container.setAccordion(Layout.ACC_HORIZONTAL);
+            } else {
+                // Set the active tab to the focused window
+                const activeIndex = container._getIndexOfWindow(this._activeWindowId);
+                if (activeIndex !== -1) {
+                    container._activeTabIndex = activeIndex;
+                }
+                container.setTabbed();
+            }
+            this._tileMonitors();
+        } else {
+            Logger.warn("Could not find container for active window");
+        }
+    }
+
     public printTreeStructure(): void {
         Logger.info("=".repeat(80));
         Logger.info("WINDOW TREE STRUCTURE");
@@ -531,8 +562,11 @@ export default class WindowManager implements IWindowManager {
             monitor._workspaces.forEach((workspace, workspaceIndex) => {
                 const isActiveWorkspace = workspaceIndex === activeWorkspaceIndex;
                 Logger.info(`  Workspace ${workspaceIndex}${isActiveWorkspace && isActiveMonitor ? ' *' : ''}:`);
-                Logger.info(`    Orientation: ${workspace._orientation === 0 ? 'HORIZONTAL' : 'VERTICAL'}`);
+                Logger.info(`    Orientation: ${Layout[workspace._orientation]}`);
                 Logger.info(`    Items: ${workspace._tiledItems.length}`);
+                if (workspace.isTabbed()) {
+                    Logger.info(`    Active Tab: ${workspace._activeTabIndex}`);
+                }
                 this._printContainerTree(workspace, 4);
             });
         });
@@ -547,7 +581,7 @@ export default class WindowManager implements IWindowManager {
             if (item instanceof WindowContainer) {
                 const containsActive = this._activeWindowId !== null &&
                                        item.getWindow(this._activeWindowId) !== undefined;
-                Logger.info(`${indent}[${index}] Container (${item._orientation === 0 ? 'HORIZONTAL' : 'VERTICAL'})${containsActive ? ' *' : ''}:`);
+                Logger.info(`${indent}[${index}] Container (${Layout[item._orientation]})${containsActive ? ' *' : ''}:`);
                 Logger.info(`${indent}    Items: ${item._tiledItems.length}`);
                 Logger.info(`${indent}    Work Area: x=${item._workArea.x}, y=${item._workArea.y}, w=${item._workArea.width}, h=${item._workArea.height}`);
                 this._printContainerTree(item, indentLevel + 4);
