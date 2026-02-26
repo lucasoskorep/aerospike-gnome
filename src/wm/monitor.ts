@@ -1,7 +1,6 @@
 import {WindowWrapper} from "./window.js";
 import {Rect} from "../utils/rect.js";
 import {Logger} from "../utils/logger.js";
-import Meta from "gi://Meta";
 
 import WindowContainer from "./container.js";
 
@@ -71,6 +70,18 @@ export default class Monitor {
 
     addWorkspace(): void {
         this._workspaces.push(new WindowContainer(this._workArea));
+    }
+
+    hideTabBars(): void {
+        for (const container of this._workspaces) {
+            container.hideTabBar();
+        }
+    }
+
+    showTabBars(): void {
+        for (const container of this._workspaces) {
+            container.showTabBar();
+        }
     }
 
     itemDragged(item: WindowWrapper, x: number, y: number): void {

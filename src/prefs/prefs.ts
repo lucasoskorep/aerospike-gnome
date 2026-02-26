@@ -182,6 +182,15 @@ export default class AerospikeExtensions extends ExtensionPreferences {
             })
         );
 
+        keybindingsGroup.add(
+            new EntryRow({
+                title: _('Toggle Tabbed Mode'),
+                settings: settings,
+                bind: 'toggle-tabbed',
+                map: keybindingMap
+            })
+        );
+
     }
 
     // Helper function to create a keybinding mapping object
