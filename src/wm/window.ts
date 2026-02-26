@@ -119,6 +119,10 @@ export class WindowWrapper {
         }
 
         actor.remove_all_transitions();
+
+        // Move first to guarantee the window reaches the correct position even
+        // if the subsequent resize is clamped by minimum-size hints.
+        this._window.move_frame(true, rect.x, rect.y);
         this._window.move_resize_frame(true, rect.x, rect.y, rect.width, rect.height);
 
         const new_rect = this._window.get_frame_rect();
@@ -129,13 +133,27 @@ export class WindowWrapper {
             Math.abs(new_rect.height - rect.height) > WindowWrapper.RESIZE_TOLERANCE;
 
         if (_retry > 0 && mismatch) {
-            Logger.warn("RESIZE MISMATCH, retrying",
-                `want(${rect.x},${rect.y},${rect.width},${rect.height})`,
-                `got(${new_rect.x},${new_rect.y},${new_rect.width},${new_rect.height})`);
-            queueEvent({
-                name: `delayed_resize_${this.getWindowId()}`,
-                callback: () => this.safelyResizeWindow(rect, _retry - 1),
-            }, 50);
+            // If the window's actual size is larger than requested, it has a
+            // minimum-size constraint — retrying won't help.  Just make sure
+            // it's at the correct position with its actual size.
+            const sizeConstrained =
+                new_rect.width  > rect.width  + WindowWrapper.RESIZE_TOLERANCE ||
+                new_rect.height > rect.height + WindowWrapper.RESIZE_TOLERANCE;
+
+            if (sizeConstrained) {
+                Logger.info("Window has min-size constraint, accepting actual size",
+                    `want(${rect.x},${rect.y},${rect.width},${rect.height})`,
+                    `actual(${new_rect.x},${new_rect.y},${new_rect.width},${new_rect.height})`);
+                this._window.move_frame(true, rect.x, rect.y);
+            } else {
+                Logger.warn("RESIZE MISMATCH, retrying",
+                    `want(${rect.x},${rect.y},${rect.width},${rect.height})`,
+                    `got(${new_rect.x},${new_rect.y},${new_rect.width},${new_rect.height})`);
+                queueEvent({
+                    name: `delayed_resize_${this.getWindowId()}`,
+                    callback: () => this.safelyResizeWindow(rect, _retry - 1),
+                }, 50);
+            }
         }
     }
 }
