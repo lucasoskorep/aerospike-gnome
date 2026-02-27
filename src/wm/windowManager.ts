@@ -103,6 +103,7 @@ export default class WindowManager implements IWindowManager {
             }),
             global.display.connect("in-fullscreen-changed", () => {
                 Logger.log("IN FULL SCREEN CHANGED");
+                this._syncFullscreenTabBars();
             }),
         );
 
@@ -431,6 +432,16 @@ export default class WindowManager implements IWindowManager {
             this._minimizedItems.set(winWrap.getWindow().get_id(), winWrap);
         } else {
             this._monitors.get(winWrap.getWindow().get_monitor())?.addWindow(winWrap)
+        }
+    }
+
+    private _syncFullscreenTabBars(): void {
+        for (const [monitorId, monitor] of this._monitors.entries()) {
+            if (global.display.get_monitor_in_fullscreen(monitorId)) {
+                monitor.hideTabBars();
+            } else if (!this._showingOverview) {
+                monitor.showTabBars();
+            }
         }
     }
 
