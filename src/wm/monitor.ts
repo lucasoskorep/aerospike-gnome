@@ -72,6 +72,13 @@ export default class Monitor {
         this._workspaces.push(new WindowContainer(this._workArea));
     }
 
+    refreshTabTitlesForWindow(winWrap: WindowWrapper): void {
+        const wsId = winWrap.getWorkspace();
+        if (wsId >= 0 && wsId < this._workspaces.length) {
+            this._workspaces[wsId].refreshTabTitles();
+        }
+    }
+
     hideTabBars(): void {
         for (const container of this._workspaces) {
             container.hideTabBar();

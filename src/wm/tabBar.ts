@@ -1,4 +1,5 @@
 import Clutter from 'gi://Clutter';
+import Pango from 'gi://Pango';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Logger} from "../utils/logger.js";
@@ -25,6 +26,8 @@ export class TabBar {
             can_focus: false,
             track_hover: false,
         });
+        // Force all tabs to equal width regardless of text length
+        (this._bar.layout_manager as Clutter.BoxLayout).homogeneous = true;
     }
 
     /**
@@ -36,19 +39,22 @@ export class TabBar {
         this._buttons = [];
 
         items.forEach((item, index) => {
+            const label = new St.Label({
+                text: item.getTabLabel(),
+                style_class: 'aerospike-tab-label',
+                y_align: Clutter.ActorAlign.CENTER,
+                x_align: Clutter.ActorAlign.CENTER,
+                x_expand: true,
+            });
+            label.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+
             const button = new St.Button({
                 style_class: 'aerospike-tab',
                 reactive: true,
                 can_focus: false,
                 track_hover: true,
                 x_expand: true,
-                child: new St.Label({
-                    text: item.getTabLabel(),
-                    style_class: 'aerospike-tab-label',
-                    y_align: Clutter.ActorAlign.CENTER,
-                    x_align: Clutter.ActorAlign.CENTER,
-                    x_expand: true,
-                }),
+                child: label,
             });
 
             button.connect('clicked', () => {

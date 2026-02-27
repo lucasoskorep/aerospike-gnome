@@ -378,6 +378,13 @@ export default class WindowContainer {
     }
 
     /**
+     * Public entry point to refresh tab titles (e.g. when a window title changes).
+     */
+    refreshTabTitles(): void {
+        this._updateTabBar();
+    }
+
+    /**
      * Update tab bar state (active highlight, titles) without a full rebuild.
      */
     private _updateTabBar(): void {
