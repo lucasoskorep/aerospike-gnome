@@ -22,6 +22,8 @@ export interface IWindowManager {
 
     handleWindowPositionChanged(winWrap: WindowWrapper): void;
 
+    handleWindowTitleChanged(winWrap: WindowWrapper): void;
+
     syncActiveWindow(): number | null;
 }
 
@@ -418,6 +420,11 @@ export default class WindowManager implements IWindowManager {
         window.disconnectWindowSignals()
         this.syncActiveWindow();
         this._tileMonitors();
+    }
+
+    handleWindowTitleChanged(window: WindowWrapper): void {
+        const mon_id = window._window.get_monitor();
+        this._monitors.get(mon_id)?.refreshTabTitlesForWindow(window);
     }
 
     public addWindowToMonitor(window: Meta.Window) {

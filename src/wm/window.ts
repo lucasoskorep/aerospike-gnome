@@ -48,7 +48,13 @@ export class WindowWrapper {
     }
 
     getTabLabel(): string {
-        const appName = this._window.get_wm_class() ?? '';
+        const rawAppName = this._window.get_wm_class() ?? '';
+        // Strip reverse-domain prefix (e.g. "org.gnome.Nautilus" -> "Nautilus")
+        const lastName = rawAppName.includes('.')
+            ? (rawAppName.split('.').pop() ?? rawAppName)
+            : rawAppName;
+        // Capitalize first letter
+        const appName = lastName.charAt(0).toUpperCase() + lastName.slice(1);
         const title = this._window.get_title() ?? 'Untitled';
         if (appName && appName.toLowerCase() !== title.toLowerCase()) {
             return `${appName} | ${title}`;
@@ -107,6 +113,9 @@ export class WindowWrapper {
             }),
             this._window.connect("size-changed", () => {
                 windowManager.handleWindowPositionChanged(this);
+            }),
+            this._window.connect('notify::title', () => {
+                windowManager.handleWindowTitleChanged(this);
             }),
         );
     }
