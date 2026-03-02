@@ -5,7 +5,7 @@ import {WindowWrapper} from './window.js';
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import {Logger} from "../utils/logger.js";
 import Monitor from "./monitor.js";
-import WindowContainer, {Layout} from "./container.js";
+import WindowContainer, {Direction, Layout} from "./container.js";
 import {Rect} from "../utils/rect.js";
 
 
@@ -562,6 +562,170 @@ export default class WindowManager implements IWindowManager {
             this._tileMonitors();
         } else {
             Logger.warn("Could not find container for active window");
+        }
+    }
+
+    /**
+     * Move (swap) the active window in the given direction within its container.
+     *
+     * 1. Find the container holding the active window.
+     * 2. Ask the container to swap the window with its neighbour in that direction.
+     * 3. Re-tile to apply the new layout.
+     */
+    public moveInDirection(direction: Direction): void {
+        if (this._activeWindowId === null) {
+            Logger.warn("No active window, cannot move in direction");
+            return;
+        }
+
+        const container = this._findContainerForWindowAcrossMonitors(this._activeWindowId);
+        if (!container) {
+            Logger.warn("Could not find container for active window");
+            return;
+        }
+
+        const swapped = container.swapWindowInDirection(this._activeWindowId, direction);
+        if (swapped) {
+            Logger.info(`Moved window ${this._activeWindowId} ${direction}`);
+            this._tileMonitors();
+        }
+    }
+
+    /**
+     * Move focus to the adjacent window in the given direction.
+     *
+     * 1. Find the container holding the active window.
+     * 2. Ask the container for the adjacent window in that direction.
+     * 3. If the container returns null (at the edge), try cross-monitor navigation.
+     * 4. Activate (focus) the target window.
+     */
+    public focusInDirection(direction: Direction): void {
+        if (this._activeWindowId === null) {
+            Logger.warn("No active window, cannot focus in direction");
+            return;
+        }
+
+        const container = this._findContainerForWindowAcrossMonitors(this._activeWindowId);
+        if (!container) {
+            Logger.warn("Could not find container for active window");
+            return;
+        }
+
+        const targetId = container.getAdjacentWindowId(this._activeWindowId, direction);
+        if (targetId !== null) {
+            this._activateWindowById(targetId);
+            return;
+        }
+
+        // At the edge of the container — try cross-monitor navigation
+        const crossMonitorId = this._findCrossMonitorWindow(direction);
+        if (crossMonitorId !== null) {
+            this._activateWindowById(crossMonitorId);
+        }
+    }
+
+    /**
+     * Focus a window by its ID. Finds the Meta.Window and calls activate().
+     */
+    private _activateWindowById(windowId: number): void {
+        for (const monitor of this._monitors.values()) {
+            const wrapped = monitor.getWindow(windowId);
+            if (wrapped) {
+                const metaWindow = wrapped.getWindow();
+                metaWindow.activate(global.get_current_time());
+                return;
+            }
+        }
+        Logger.warn(`_activateWindowById: window ${windowId} not found in any monitor`);
+    }
+
+    /**
+     * When at the edge of a container, find the nearest window on the adjacent
+     * monitor in the given direction.
+     *
+     * Determines the adjacent monitor by comparing work-area centres:
+     *   - LEFT:  monitor whose work-area is to the left  of the current one
+     *   - RIGHT: monitor whose work-area is to the right of the current one
+     *   - UP:    monitor whose work-area is above the current one
+     *   - DOWN:  monitor whose work-area is below the current one
+     *
+     * On the target monitor, picks the edge-most window:
+     *   - Navigating LEFT  → last (rightmost) window of the target container
+     *   - Navigating RIGHT → first (leftmost) window of the target container
+     *   - Navigating UP    → last (bottommost) window
+     *   - Navigating DOWN  → first (topmost) window
+     */
+    private _findCrossMonitorWindow(direction: Direction): number | null {
+        if (this._activeWindowId === null) return null;
+
+        // Find which monitor the active window is on
+        let currentMonitorId: number | null = null;
+        for (const [monId, monitor] of this._monitors.entries()) {
+            if (monitor.getWindow(this._activeWindowId) !== undefined) {
+                currentMonitorId = monId;
+                break;
+            }
+        }
+        if (currentMonitorId === null) return null;
+
+        const currentMonitor = this._monitors.get(currentMonitorId)!;
+        const currentArea = currentMonitor._workArea;
+        const currentCenterX = currentArea.x + currentArea.width / 2;
+        const currentCenterY = currentArea.y + currentArea.height / 2;
+
+        // Find the best adjacent monitor in the given direction
+        let bestMonitorId: number | null = null;
+        let bestDistance = Infinity;
+
+        for (const [monId, monitor] of this._monitors.entries()) {
+            if (monId === currentMonitorId) continue;
+
+            const area = monitor._workArea;
+            const centerX = area.x + area.width / 2;
+            const centerY = area.y + area.height / 2;
+
+            let isInDirection = false;
+            let distance = Infinity;
+
+            switch (direction) {
+                case Direction.LEFT:
+                    isInDirection = centerX < currentCenterX;
+                    distance = currentCenterX - centerX;
+                    break;
+                case Direction.RIGHT:
+                    isInDirection = centerX > currentCenterX;
+                    distance = centerX - currentCenterX;
+                    break;
+                case Direction.UP:
+                    isInDirection = centerY < currentCenterY;
+                    distance = currentCenterY - centerY;
+                    break;
+                case Direction.DOWN:
+                    isInDirection = centerY > currentCenterY;
+                    distance = centerY - currentCenterY;
+                    break;
+            }
+
+            if (isInDirection && distance < bestDistance) {
+                bestDistance = distance;
+                bestMonitorId = monId;
+            }
+        }
+
+        if (bestMonitorId === null) return null;
+
+        const targetMonitor = this._monitors.get(bestMonitorId)!;
+        const activeWorkspaceIndex = global.workspace_manager.get_active_workspace().index();
+        if (activeWorkspaceIndex >= targetMonitor._workspaces.length) return null;
+
+        const targetContainer = targetMonitor._workspaces[activeWorkspaceIndex];
+        if (targetContainer._tiledItems.length === 0) return null;
+
+        // Pick the window on the "entry edge" of the target container
+        if (direction === Direction.LEFT || direction === Direction.UP) {
+            return targetContainer._lastLeafWindowId();
+        } else {
+            return targetContainer._firstLeafWindowId();
         }
     }
 
