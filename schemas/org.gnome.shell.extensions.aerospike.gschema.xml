@@ -1,64 +1,78 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
     <schema id="org.gnome.shell.extensions.aerospike" path="/org/gnome/shell/extensions/aerospike/">
-        <key name="dropdown-option" type="s">
-            <default>'option1'</default>
-            <summary>Dropdown selection</summary>
-            <description>Option selected from the dropdown menu</description>
+
+        <key name="focus-left" type="as">
+            <default><![CDATA[['<Super>h']]]></default>
+            <summary>Focus window to the left</summary>
+            <description>Move focus to the window to the left of the current window. In tabbed mode, switches to the previous tab.</description>
         </key>
 
-        <key name="color-selection" type="s">
-            <default>'rgb(255,0,0)'</default>
-            <summary>Selected color</summary>
-            <description>Color chosen from the color picker</description>
+        <key name="focus-right" type="as">
+            <default><![CDATA[['<Super>l']]]></default>
+            <summary>Focus window to the right</summary>
+            <description>Move focus to the window to the right of the current window. In tabbed mode, switches to the next tab.</description>
         </key>
+
+        <key name="focus-up" type="as">
+            <default><![CDATA[['<Super>k']]]></default>
+            <summary>Focus window above</summary>
+            <description>Move focus to the window above the current window.</description>
+        </key>
+
+        <key name="focus-down" type="as">
+            <default><![CDATA[['<Super>j']]]></default>
+            <summary>Focus window below</summary>
+            <description>Move focus to the window below the current window.</description>
+        </key>
+
 
         <key name="move-left" type="as">
-            <default><![CDATA[['<Super>1']]]></default>
-            <summary>Keybinding for action 1</summary>
-            <description>Keyboard shortcut for triggering action 1</description>
+            <default><![CDATA[['<Super><Shift>h']]]></default>
+            <summary>Move window to the left</summary>
+            <description>Move the active window one position to the left within its container</description>
         </key>
 
         <key name="move-right" type="as">
-            <default><![CDATA[['<Super>2']]]></default>
-            <summary>Keybinding for action 2</summary>
-            <description>Keyboard shortcut for triggering action 2</description>
+            <default><![CDATA[['<Super><Shift>l']]]></default>
+            <summary>Move window to the right</summary>
+            <description>Move the active window one position to the right within its container</description>
         </key>
 
-        <key name="join-with-left" type="as">
-            <default><![CDATA[['<Super>3']]]></default>
-            <summary>Keybinding for action 3</summary>
-            <description>Keyboard shortcut for triggering action 3</description>
+        <key name="move-up" type="as">
+            <default><![CDATA[['<Super><Shift>k']]]></default>
+            <summary>Move window up</summary>
+            <description>Move the active window one position up within its container</description>
         </key>
 
-        <key name="join-with-right" type="as">
-            <default><![CDATA[['<Super>4']]]></default>
-            <summary>Keybinding for action 4</summary>
-            <description>Keyboard shortcut for triggering action 4</description>
+        <key name="move-down" type="as">
+            <default><![CDATA[['<Super><Shift>j']]]></default>
+            <summary>Move window down</summary>
+            <description>Move the active window one position down within its container</description>
+        </key>
+
+        <key name="toggle-orientation" type="as">
+            <default><![CDATA[['<Super>comma']]]></default>
+            <summary>Toggle active container orientation</summary>
+            <description>Toggles the orientation of the container holding the active window between horizontal and vertical</description>
+        </key>
+
+        <key name="reset-ratios" type="as">
+            <default><![CDATA[['<Super>z']]]></default>
+            <summary>Reset container ratios to equal splits</summary>
+            <description>Resets all window size ratios in the active window's container to equal splits</description>
+        </key>
+
+        <key name="toggle-tabbed" type="as">
+            <default><![CDATA[['<Super>slash']]]></default>
+            <summary>Toggle tabbed container mode</summary>
+            <description>Toggles the active window's container between tabbed and accordion layout modes</description>
         </key>
 
         <key name="print-tree" type="as">
             <default><![CDATA[['<Super><Shift>x']]]></default>
             <summary>Print window tree structure</summary>
             <description>Prints the current tree of containers and windows per monitor to logs</description>
-        </key>
-
-        <key name="toggle-orientation" type="as">
-            <default><![CDATA[['<Primary>comma']]]></default>
-            <summary>Toggle active container orientation</summary>
-            <description>Toggles the orientation of the container holding the active window between horizontal and vertical</description>
-        </key>
-
-        <key name="reset-ratios" type="as">
-            <default><![CDATA[['<Primary>z']]]></default>
-            <summary>Reset container ratios to equal splits</summary>
-            <description>Resets all window size ratios in the active window's container to equal splits</description>
-        </key>
-
-        <key name="toggle-tabbed" type="as">
-            <default><![CDATA[['<Primary>slash']]]></default>
-            <summary>Toggle tabbed container mode</summary>
-            <description>Toggles the active window's container between tabbed and accordion layout modes</description>
         </key>
 
     </schema>

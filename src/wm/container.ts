@@ -10,6 +10,13 @@ export enum Layout {
     TABBED = 2,
 }
 
+export enum Direction {
+    LEFT  = 'left',
+    RIGHT = 'right',
+    UP    = 'up',
+    DOWN  = 'down',
+}
+
 // Returns equal ratios summing exactly to 1.0, with float drift absorbed by the last slot.
 function equalRatios(n: number): number[] {
     if (n <= 0) return [];
@@ -536,5 +543,146 @@ export default class WindowContainer {
     resetRatios(): void {
         this._resetRatios();
         this.drawWindows();
+    }
+
+    // --- Directional Move (swap) ------------------------------------------------
+
+    /**
+     * Swap the window at `windowId` with its neighbour in the given direction.
+     * Returns true if the swap occurred, false if the window is already at the edge
+     * or the direction is perpendicular to the container axis.
+     */
+    swapWindowInDirection(windowId: number, direction: Direction): boolean {
+        const currentIndex = this._getIndexOfWindow(windowId);
+        if (currentIndex === -1) return false;
+
+        if (this.isTabbed()) {
+            // Tabbed: left/up = swap toward start, right/down = swap toward end
+            const delta = (direction === Direction.LEFT || direction === Direction.UP) ? -1 : 1;
+            const newIndex = currentIndex + delta;
+            if (newIndex < 0 || newIndex >= this._tiledItems.length) return false;
+
+            this._swapItems(currentIndex, newIndex);
+            this._activeTabIndex = newIndex;
+            this._updateTabBar();
+            this.drawWindows();
+            return true;
+        }
+
+        // Accordion mode — only swap along the container's axis
+        const isAlongAxis =
+            (this._orientation === Layout.ACC_HORIZONTAL && (direction === Direction.LEFT || direction === Direction.RIGHT)) ||
+            (this._orientation === Layout.ACC_VERTICAL   && (direction === Direction.UP   || direction === Direction.DOWN));
+
+        if (!isAlongAxis) return false;
+
+        const delta = (direction === Direction.LEFT || direction === Direction.UP) ? -1 : 1;
+        const newIndex = currentIndex + delta;
+        if (newIndex < 0 || newIndex >= this._tiledItems.length) return false;
+
+        this._swapItems(currentIndex, newIndex);
+        this.drawWindows();
+        return true;
+    }
+
+    /**
+     * Swap two items in `_tiledItems` and their corresponding split ratios.
+     */
+    private _swapItems(indexA: number, indexB: number): void {
+        [this._tiledItems[indexA], this._tiledItems[indexB]] =
+            [this._tiledItems[indexB], this._tiledItems[indexA]];
+        [this._splitRatios[indexA], this._splitRatios[indexB]] =
+            [this._splitRatios[indexB], this._splitRatios[indexA]];
+    }
+
+    // --- Directional Navigation ------------------------------------------------
+
+    /**
+     * Given a window inside this container and a direction, return the window ID
+     * that should receive focus, or null if the edge of the container is reached.
+     *
+     * Behaviour by layout mode:
+     *  - ACC_HORIZONTAL: left/right moves to the prev/next item; up/down → null
+     *  - ACC_VERTICAL:   up/down   moves to the prev/next item; left/right → null
+     *  - TABBED:         left/right moves to the prev/next tab;  up/down → null
+     */
+    getAdjacentWindowId(windowId: number, direction: Direction): number | null {
+        const currentIndex = this._getIndexOfWindow(windowId);
+        if (currentIndex === -1) return null;
+
+        if (this.isTabbed()) {
+            // Tabbed: left/right cycle through tabs
+            if (direction === Direction.LEFT || direction === Direction.UP) {
+                const newIndex = currentIndex - 1;
+                if (newIndex < 0) return null;
+                return this._windowIdAtIndex(newIndex);
+            }
+            if (direction === Direction.RIGHT || direction === Direction.DOWN) {
+                const newIndex = currentIndex + 1;
+                if (newIndex >= this._tiledItems.length) return null;
+                return this._windowIdAtIndex(newIndex);
+            }
+            return null;
+        }
+
+        // Accordion mode – only navigate along the container's axis
+        const isAlongAxis =
+            (this._orientation === Layout.ACC_HORIZONTAL && (direction === Direction.LEFT || direction === Direction.RIGHT)) ||
+            (this._orientation === Layout.ACC_VERTICAL   && (direction === Direction.UP   || direction === Direction.DOWN));
+
+        if (!isAlongAxis) return null;
+
+        const delta = (direction === Direction.LEFT || direction === Direction.UP) ? -1 : 1;
+        const newIndex = currentIndex + delta;
+        if (newIndex < 0 || newIndex >= this._tiledItems.length) return null;
+
+        return this._windowIdAtIndex(newIndex);
+    }
+
+    /**
+     * Return the "representative" window ID for the item at `index`.
+     * If the item is a WindowWrapper, return its ID directly.
+     * If it's a nested WindowContainer, return the first (or last) leaf window.
+     */
+    private _windowIdAtIndex(index: number): number | null {
+        const item = this._tiledItems[index];
+        if (!item) return null;
+
+        if (item instanceof WindowWrapper) {
+            return item.getWindowId();
+        }
+        if (item instanceof WindowContainer) {
+            return item._firstLeafWindowId();
+        }
+        return null;
+    }
+
+    /**
+     * Return the window ID of the first leaf window in this container (depth-first).
+     */
+    _firstLeafWindowId(): number | null {
+        for (const item of this._tiledItems) {
+            if (item instanceof WindowWrapper) return item.getWindowId();
+            if (item instanceof WindowContainer) {
+                const id = item._firstLeafWindowId();
+                if (id !== null) return id;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Return the window ID of the last leaf window in this container (depth-first from end).
+     */
+    _lastLeafWindowId(): number | null {
+        for (let i = this._tiledItems.length - 1; i >= 0; i--) {
+            const item = this._tiledItems[i];
+            if (item instanceof WindowWrapper) return item.getWindowId();
+            if (item instanceof WindowContainer) {
+                const id = item._lastLeafWindowId();
+                if (id !== null) return id;
+            }
+        }
+        return null;
     }
 }

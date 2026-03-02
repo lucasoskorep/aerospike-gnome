@@ -4,6 +4,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import Gio from 'gi://Gio';
 import Shell from 'gi://Shell';
 import WindowManager from './src/wm/windowManager.js'
+import {Direction} from './src/wm/container.js'
 import {Logger} from "./src/utils/logger.js";
 
 export default class aerospike extends Extension {
@@ -37,14 +38,18 @@ export default class aerospike extends Extension {
 
     private keybindingActions(): Record<string, () => void> {
         return {
-            'move-left':          () => { Logger.info('Keybinding 1 was pressed!'); },
-            'move-right':         () => { Logger.info('Keybinding 2 was pressed!'); },
-            'join-with-left':     () => { Logger.info('Keybinding 3 was pressed!'); },
-            'join-with-right':    () => { Logger.info('Keybinding 4 was pressed!'); },
             'print-tree':         () => { this.windowManager.printTreeStructure(); },
             'toggle-orientation': () => { this.windowManager.toggleActiveContainerOrientation(); },
             'reset-ratios':       () => { this.windowManager.resetActiveContainerRatios(); },
             'toggle-tabbed':      () => { this.windowManager.toggleActiveContainerTabbed(); },
+            'focus-left':         () => { this.windowManager.focusInDirection(Direction.LEFT); },
+            'focus-right':        () => { this.windowManager.focusInDirection(Direction.RIGHT); },
+            'focus-up':           () => { this.windowManager.focusInDirection(Direction.UP); },
+            'focus-down':         () => { this.windowManager.focusInDirection(Direction.DOWN); },
+            'move-left':          () => { this.windowManager.moveInDirection(Direction.LEFT); },
+            'move-right':         () => { this.windowManager.moveInDirection(Direction.RIGHT); },
+            'move-up':            () => { this.windowManager.moveInDirection(Direction.UP); },
+            'move-down':          () => { this.windowManager.moveInDirection(Direction.DOWN); },
         };
     }
 
@@ -55,14 +60,6 @@ export default class aerospike extends Extension {
                 log(`${name} keybinding changed to: ${this.settings.get_strv(name)}`);
                 this.refreshKeybinding(name);
             });
-        });
-
-        this.settings.connect('changed::dropdown-option', () => {
-            log(`Dropdown option changed to: ${this.settings.get_string('dropdown-option')}`);
-        });
-
-        this.settings.connect('changed::color-selection', () => {
-            log(`Color selection changed to: ${this.settings.get_string('color-selection')}`);
         });
     }
 
