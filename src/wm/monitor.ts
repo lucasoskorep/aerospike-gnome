@@ -72,6 +72,12 @@ export default class Monitor {
         this._workspaces.push(new WindowContainer(this._workArea));
     }
 
+    focusWindowTab(windowId: number): void {
+        for (const container of this._workspaces) {
+            if (container.focusWindowTab(windowId)) return;
+        }
+    }
+
     refreshTabTitlesForWindow(winWrap: WindowWrapper): void {
         const wsId = winWrap.getWorkspace();
         if (wsId >= 0 && wsId < this._workspaces.length) {

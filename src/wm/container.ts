@@ -161,6 +161,21 @@ export default class WindowContainer {
         return this._activeTabIndex;
     }
 
+    /**
+     * If the given window is a tab in this container, make it the active tab.
+     * Returns true if the window was found and activated.
+     */
+    focusWindowTab(windowId: number): boolean {
+        if (!this.isTabbed()) return false;
+
+        const index = this._getIndexOfWindow(windowId);
+        if (index !== -1 && index !== this._activeTabIndex) {
+            this.setActiveTab(index);
+            return true;
+        }
+        return index !== -1;
+    }
+
     hideTabBar(): void {
         this._tabBar?.hide();
     }

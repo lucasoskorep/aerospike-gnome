@@ -504,6 +504,10 @@ export default class WindowManager implements IWindowManager {
         if (focusWindow) {
             this._activeWindowId = focusWindow.get_id();
             Logger.debug(`Active window changed to: ${this._activeWindowId} (${focusWindow.get_title()})`);
+
+            // If the focused window is inside a tabbed container, make it the active tab
+            const monId = focusWindow.get_monitor();
+            this._monitors.get(monId)?.focusWindowTab(this._activeWindowId);
         } else {
             this._activeWindowId = null;
             Logger.debug('No active window');
