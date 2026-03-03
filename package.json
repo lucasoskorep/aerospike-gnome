@@ -1,7 +1,7 @@
 {
   "name": "aerospike",
   "version": "0.2.1",
-  "description": "A TypeScript GNOME Extension for Pretty Borders",
+  "description": "Simple, Opinionated Tiling Window Manager for Gnome written in Typescript",
   "type": "module",
   "private": true,
   "repository": {
@@ -11,9 +11,9 @@
   "author": "Lucas Oskorep <lucas.oskorep@gmail.com>",
   "license": "GPL-3.0-only",
   "bugs": {
-    "url": "https://github.com/example/my-extension/issues"
+    "url": "https://github.com/lucasoskorep/aerospike-gnome/issues"
   },
-  "homepage": "https://github.com/example/my-extension#readme",
+  "homepage": "https://github.com/lucasoskorep/aerospike-gnome/#readme",
   "sideEffects": false,
   "scripts": {
     "test": "jest",
