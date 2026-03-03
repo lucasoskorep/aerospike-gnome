@@ -1,6 +1,6 @@
 {
   "name": "aerospike",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A TypeScript GNOME Extension for Pretty Borders",
   "type": "module",
   "private": true,
