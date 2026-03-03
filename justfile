@@ -8,7 +8,7 @@ packages:
 
 build: packages && build-schemas
     rm -rf dist/*
-    pnpm exec tsc
+    pnpm run build
     cp metadata.json dist/
     cp stylesheet.css dist/
     mkdir -p dist/schemas
@@ -46,6 +46,12 @@ test-coverage:
 
 ci-local:
     act -W .gitea/workflows/build.yaml
+
+lint:
+    pnpm run lint
+
+clean:
+    pnpm run clean
 
 #pack: build
 #    gnome-extensions pack dist \

@@ -1,6 +1,6 @@
 {
   "name": "aerospike",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Simple, Opinionated Tiling Window Manager for Gnome written in Typescript",
   "type": "module",
   "private": true,
@@ -16,6 +16,9 @@
   "homepage": "https://github.com/lucasoskorep/aerospike-gnome/#readme",
   "sideEffects": false,
   "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist/*",
+    "lint": "eslint .",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
