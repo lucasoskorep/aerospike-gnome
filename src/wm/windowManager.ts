@@ -566,11 +566,13 @@ export default class WindowManager implements IWindowManager {
     }
 
     /**
-     * Move (swap) the active window in the given direction within its container.
+     * Move the active window in the given direction.
      *
      * 1. Find the container holding the active window.
-     * 2. Ask the container to swap the window with its neighbour in that direction.
-     * 3. Re-tile to apply the new layout.
+     * 2. Try to swap within the container (adjacent neighbour).
+     * 3. If already at the container edge, move the window to the
+     *    nearest monitor in that direction instead.
+     * 4. Re-tile to apply the new layout.
      */
     public moveInDirection(direction: Direction): void {
         if (this._activeWindowId === null) {
@@ -588,7 +590,10 @@ export default class WindowManager implements IWindowManager {
         if (swapped) {
             Logger.info(`Moved window ${this._activeWindowId} ${direction}`);
             this._tileMonitors();
+            return;
         }
+
+        this._moveWindowCrossMonitor(this._activeWindowId, direction);
     }
 
     /**
@@ -640,40 +645,15 @@ export default class WindowManager implements IWindowManager {
     }
 
     /**
-     * When at the edge of a container, find the nearest window on the adjacent
-     * monitor in the given direction.
-     *
-     * Determines the adjacent monitor by comparing work-area centres:
-     *   - LEFT:  monitor whose work-area is to the left  of the current one
-     *   - RIGHT: monitor whose work-area is to the right of the current one
-     *   - UP:    monitor whose work-area is above the current one
-     *   - DOWN:  monitor whose work-area is below the current one
-     *
-     * On the target monitor, picks the edge-most window:
-     *   - Navigating LEFT  → last (rightmost) window of the target container
-     *   - Navigating RIGHT → first (leftmost) window of the target container
-     *   - Navigating UP    → last (bottommost) window
-     *   - Navigating DOWN  → first (topmost) window
+     * Find the adjacent monitor in the given direction from a current monitor.
+     * Returns the monitor ID or null if none exists in that direction.
      */
-    private _findCrossMonitorWindow(direction: Direction): number | null {
-        if (this._activeWindowId === null) return null;
-
-        // Find which monitor the active window is on
-        let currentMonitorId: number | null = null;
-        for (const [monId, monitor] of this._monitors.entries()) {
-            if (monitor.getWindow(this._activeWindowId) !== undefined) {
-                currentMonitorId = monId;
-                break;
-            }
-        }
-        if (currentMonitorId === null) return null;
-
+    private _findAdjacentMonitorId(currentMonitorId: number, direction: Direction): number | null {
         const currentMonitor = this._monitors.get(currentMonitorId)!;
         const currentArea = currentMonitor._workArea;
         const currentCenterX = currentArea.x + currentArea.width / 2;
         const currentCenterY = currentArea.y + currentArea.height / 2;
 
-        // Find the best adjacent monitor in the given direction
         let bestMonitorId: number | null = null;
         let bestDistance = Infinity;
 
@@ -712,21 +692,74 @@ export default class WindowManager implements IWindowManager {
             }
         }
 
-        if (bestMonitorId === null) return null;
+        return bestMonitorId;
+    }
 
-        const targetMonitor = this._monitors.get(bestMonitorId)!;
+    /**
+     * Return the monitor ID that contains the given window, or null.
+     */
+    private _findMonitorIdForWindow(windowId: number): number | null {
+        for (const [monId, monitor] of this._monitors.entries()) {
+            if (monitor.getWindow(windowId) !== undefined) return monId;
+        }
+        return null;
+    }
+
+    /**
+     * When at the edge of a container, find the nearest window on the adjacent
+     * monitor in the given direction.
+     *
+     * On the target monitor, picks the edge-most window:
+     *   - Navigating LEFT/UP   → last (far-edge) leaf window
+     *   - Navigating RIGHT/DOWN → first (near-edge) leaf window
+     */
+    private _findCrossMonitorWindow(direction: Direction): number | null {
+        if (this._activeWindowId === null) return null;
+
+        const currentMonitorId = this._findMonitorIdForWindow(this._activeWindowId);
+        if (currentMonitorId === null) return null;
+
+        const targetMonitorId = this._findAdjacentMonitorId(currentMonitorId, direction);
+        if (targetMonitorId === null) return null;
+
+        const targetMonitor = this._monitors.get(targetMonitorId)!;
         const activeWorkspaceIndex = global.workspace_manager.get_active_workspace().index();
         if (activeWorkspaceIndex >= targetMonitor._workspaces.length) return null;
 
         const targetContainer = targetMonitor._workspaces[activeWorkspaceIndex];
         if (targetContainer._tiledItems.length === 0) return null;
 
-        // Pick the window on the "entry edge" of the target container
-        if (direction === Direction.LEFT || direction === Direction.UP) {
-            return targetContainer._lastLeafWindowId();
-        } else {
-            return targetContainer._firstLeafWindowId();
-        }
+        return (direction === Direction.LEFT || direction === Direction.UP)
+            ? targetContainer._lastLeafWindowId()
+            : targetContainer._firstLeafWindowId();
+    }
+
+    /**
+     * Move a window to the adjacent monitor in the given direction.
+     *
+     * The window is inserted at the "entry edge" of the target container:
+     *   - Moving RIGHT/DOWN → position 0 (near edge)
+     *   - Moving LEFT/UP    → end of the container (far edge)
+     */
+    private _moveWindowCrossMonitor(windowId: number, direction: Direction): void {
+        const currentMonitorId = this._findMonitorIdForWindow(windowId);
+        if (currentMonitorId === null) return;
+
+        const targetMonitorId = this._findAdjacentMonitorId(currentMonitorId, direction);
+        if (targetMonitorId === null) return;
+
+        const currentMonitor = this._monitors.get(currentMonitorId)!;
+        const wrapped = currentMonitor.getWindow(windowId);
+        if (!wrapped) return;
+
+        const targetMonitor = this._monitors.get(targetMonitorId)!;
+        const insertIndex = (direction === Direction.RIGHT || direction === Direction.DOWN) ? 0 : undefined;
+
+        currentMonitor.removeWindow(wrapped);
+        targetMonitor.addWindow(wrapped, insertIndex);
+
+        this._tileMonitors();
+        Logger.info(`Moved window ${windowId} to monitor ${targetMonitorId} (${direction})`);
     }
 
     public printTreeStructure(): void {

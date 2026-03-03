@@ -55,7 +55,11 @@ export default class WindowContainer {
         this._splitRatios = equalRatios(this._tiledItems.length);
     }
 
-    private _addRatioForNewWindow(): void {
+    /**
+     * Proportionally shrink existing ratios to carve out space for a new item
+     * at the given index. If no index is supplied the ratio is appended at the end.
+     */
+    private _addRatioForNewWindow(index?: number): void {
         const n = this._tiledItems.length;
         if (n <= 1) {
             this._splitRatios = [1.0];
@@ -66,7 +70,10 @@ export default class WindowContainer {
         const scaled = this._splitRatios.map(r => r * scale);
         const partialSum = scaled.reduce((a, b) => a + b, 0) + newRatio;
         scaled[scaled.length - 1] += (1.0 - partialSum);
-        this._splitRatios = [...scaled, newRatio];
+
+        const insertAt = index ?? scaled.length;
+        scaled.splice(insertAt, 0, newRatio);
+        this._splitRatios = scaled;
     }
 
     private _totalDimension(): number {
@@ -193,10 +200,19 @@ export default class WindowContainer {
         }
     }
 
-    addWindow(winWrap: WindowWrapper): void {
-        this._tiledItems.push(winWrap);
+    /**
+     * Add a window to this container.
+     * If `index` is omitted the window is appended at the end.
+     * A negative index (e.g. -1) is treated as "append at end".
+     */
+    addWindow(winWrap: WindowWrapper, index?: number): void {
+        const insertAt = (index === undefined || index < 0)
+            ? this._tiledItems.length
+            : Math.min(index, this._tiledItems.length);
+
+        this._tiledItems.splice(insertAt, 0, winWrap);
         this._tiledWindowLookup.set(winWrap.getWindowId(), winWrap);
-        this._addRatioForNewWindow();
+        this._addRatioForNewWindow(insertAt);
 
         if (this.isTabbed()) {
             // TODO: make it so that when tabs are added they are made the current active tab
