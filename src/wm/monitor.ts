@@ -52,9 +52,9 @@ export default class Monitor {
         }
     }
 
-    addWindow(winWrap: WindowWrapper) {
+    addWindow(winWrap: WindowWrapper, index?: number) {
         const window_workspace = winWrap.getWindow().get_workspace().index();
-        this._workspaces[window_workspace].addWindow(winWrap);
+        this._workspaces[window_workspace].addWindow(winWrap, index);
     }
 
     tileWindows(): void {
