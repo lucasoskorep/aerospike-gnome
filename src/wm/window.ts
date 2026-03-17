@@ -47,6 +47,10 @@ export class WindowWrapper {
         return this._window.get_frame_rect();
     }
 
+    isFullscreen(): boolean {
+        return this._window.is_fullscreen();
+    }
+
     getTabLabel(): string {
         const rawAppName = this._window.get_wm_class() ?? '';
         // Strip reverse-domain prefix (e.g. "org.gnome.Nautilus" -> "Nautilus")
@@ -137,6 +141,11 @@ export class WindowWrapper {
     safelyResizeWindow(rect: Rect, _retry: number = 3): void {
         if (this._dragging) {
             Logger.info("STOPPED RESIZE BECAUSE ITEM IS BEING DRAGGED");
+            return;
+        }
+
+        if (this.isFullscreen()) {
+            Logger.info("STOPPED RESIZE BECAUSE WINDOW IS FULLSCREEN");
             return;
         }
 
