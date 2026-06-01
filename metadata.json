@@ -5,7 +5,8 @@
   "settings-schema": "org.gnome.shell.extensions.aerospike",
   "shell-version": [
     "48",
-    "49"
+    "49",
+    "50"
   ],
   "gettext-domain": "aerospike@lucaso.io",
   "url": "https://gitea.chaosdev.gay/lucasoskorep/aerospike@lucaso.io"

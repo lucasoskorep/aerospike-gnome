@@ -1,6 +1,6 @@
 {
   "name": "aerospike",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Simple, Opinionated Tiling Window Manager for Gnome written in Typescript",
   "type": "module",
   "private": true,
