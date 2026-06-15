@@ -31,7 +31,7 @@ jobs:
           apt-get install -y libglib2.0-dev glib-networking zip
 
       - name: Install project dependencies
-        run: pnpm install
+        run: pnpm install --ignore-scripts
 
       - name: Run unit tests
         run: just test
