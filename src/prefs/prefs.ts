@@ -173,6 +173,7 @@ export default class AerospikeExtensions extends ExtensionPreferences {
                 if (!!value) {
                     const mappings = value.split(',').map((x) => {
                         const [, key, mods] = Gtk.accelerator_parse(x);
+                        if (mods === null) return false;
                         return Gtk.accelerator_valid(key, mods) && Gtk.accelerator_name(key, mods);
                     });
                     // Filter out any false values to ensure we only have strings

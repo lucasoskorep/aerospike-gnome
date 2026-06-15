@@ -24,17 +24,17 @@
     "test:coverage": "jest --coverage"
   },
   "devDependencies": {
-    "@girs/gjs": "4.0.0-beta.38",
-    "@girs/gnome-shell": "49.1.0",
-    "@jest/globals": "^30.0.0",
+    "@girs/gjs": "4.0.4",
+    "@girs/gnome-shell": "50.0.0",
+    "@jest/globals": "^30.4.1",
     "@types/jest": "^30.0.0",
-    "eslint": "^10.0.0",
-    "eslint-plugin-jsdoc": "^62.0.0",
-    "jest": "^30.0.0",
-    "ts-jest": "^29.1.2",
-    "typescript": "^5.9.2"
+    "eslint": "^10.5.0",
+    "eslint-plugin-jsdoc": "^63.0.2",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.11",
+    "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@girs/mtk-17": "17.0.0-4.0.0-beta.38"
+    "@girs/mtk-17": "17.0.0-4.0.4"
   }
 }
