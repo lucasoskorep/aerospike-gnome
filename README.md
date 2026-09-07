@@ -34,13 +34,13 @@ Aerospike isn't on the GNOME extension store yet, so install it from source.
 This builds the extension locally and drops it into your user's extension dir.
 Requires [just](https://github.com/casey/just) as the command runner, plus the
 same build toolchain used for development (see [Development](#development)):
-`fnm` for a Node runtime (the build runs on Node via pnpm) and `glib2` for
-`glib-compile-schemas`.
+[mise](https://mise.jdx.dev/) for managing tool versions (`node` and `pnpm`),
+and `glib2` for `glib-compile-schemas`.
 
 Arch Linux:
 
 ```bash
-sudo pacman -S git just fnm glib2  # fnm needs its shell hook on PATH: https://github.com/Schniz/fnm#shell-setup
+sudo pacman -S git just mise glib2  # mise needs its shell hook: https://mise.jdx.dev/getting-started.html#shells
 ```
 
 Clone and install:
@@ -48,8 +48,7 @@ Clone and install:
 ```bash
 git clone https://github.com/lucasoskorep/aerospike-gnome
 cd aerospike-gnome
-fnm install
-fnm use
+mise install
 just install
 ```
 
@@ -66,20 +65,19 @@ Re-login or restart the shell (`Alt+F2` → `r` on X11) to pick it up.
 Building and debugging locally needs a few extra tools:
 
 - `just` — the command runner
-- `fnm` — fast node version manager (the build runs on Node via pnpm)
+- `mise` — runtime & tool manager (pins `node` and `pnpm` in `.mise.toml`)
 - `glib2` — provides `glib-compile-schemas` for compiling the settings schema
 
 Arch Linux:
 
 ```bash
-sudo pacman -S just fnm glib2
+sudo pacman -S just mise glib2
 ```
 
-Set up the Node runtime with fnm (the pinned version lives in `.node-version`):
+Install the pinned tools with mise (defined in `.mise.toml`):
 
 ```bash
-fnm install
-fnm use
+mise install
 ```
 
 Then:
