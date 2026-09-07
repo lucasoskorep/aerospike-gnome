@@ -32,12 +32,15 @@ MacOS tiling WMs, mainly [Aerospace](https://github.com/nikitabobko/AeroSpace) (
 
 Aerospike isn't on the GNOME extension store yet, so install it from source.
 This builds the extension locally and drops it into your user's extension dir.
-Requires [just](https://github.com/casey/just) as the command runner.
+Requires [just](https://github.com/casey/just) as the command runner, plus the
+same build toolchain used for development (see [Development](#development)):
+`fnm` for a Node runtime (the build runs on Node via pnpm) and `glib2` for
+`glib-compile-schemas`.
 
 Arch Linux:
 
 ```bash
-sudo pacman -S git just
+sudo pacman -S git just fnm glib2  # fnm needs its shell hook on PATH: https://github.com/Schniz/fnm#shell-setup
 ```
 
 Clone and install:
@@ -45,6 +48,8 @@ Clone and install:
 ```bash
 git clone https://github.com/lucasoskorep/aerospike-gnome
 cd aerospike-gnome
+fnm install
+fnm use
 just install
 ```
 
