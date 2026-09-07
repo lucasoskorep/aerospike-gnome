@@ -2,6 +2,7 @@
   "name": "aerospike",
   "version": "0.2.4",
   "description": "Simple, Opinionated Tiling Window Manager for Gnome written in Typescript",
+  "packageManager": "pnpm@12.3.4",
   "type": "module",
   "private": true,
   "repository": {
