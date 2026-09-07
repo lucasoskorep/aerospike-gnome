@@ -2,14 +2,13 @@ set dotenv-load
 NAME:="aerospike"
 DOMAIN:="lucaso.io"
 FULL_NAME:=NAME + "@" + DOMAIN
-PNPM:="npx --yes corepack pnpm"
 
 packages:
-	{{PNPM}} install
+	npx --yes corepack pnpm install
 
 build: packages && build-schemas
     rm -rf dist/*
-    {{PNPM}} run build
+    pnpm run build
     cp metadata.json dist/
     cp stylesheet.css dist/
     mkdir -p dist/schemas
@@ -37,22 +36,22 @@ live-debug:
     journalctl /usr/bin/gnome-shell -f -o cat | tee debug.log
 
 test:
-    {{PNPM}} test
+    pnpm test
 
 test-watch:
-    {{PNPM}} test:watch
+    pnpm test:watch
 
 test-coverage:
-    {{PNPM}} test:coverage
+    pnpm test:coverage
 
 ci-local:
     act -W .gitea/workflows/build.yaml
 
 lint:
-    {{PNPM}} run lint
+    pnpm run lint
 
 clean:
-    {{PNPM}} run clean
+    pnpm run clean
 
 #pack: build
 #    gnome-extensions pack dist \
