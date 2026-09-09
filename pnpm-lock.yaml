@@ -117,10 +117,10 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.10.0(supports-color@8.1.1))
       '@girs/gjs':
-        specifier: 4.7.0
+        specifier: ^4.7.0
         version: 4.7.0
       '@girs/gnome-shell':
-        specifier: 50.0.4
+        specifier: ^50.0.4
         version: 50.0.4
       '@jest/globals':
         specifier: ^30.5.1

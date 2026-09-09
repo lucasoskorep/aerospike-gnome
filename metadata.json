@@ -1,5 +1,5 @@
 {
-  "name": "aerospike",
+  "name": "Aerospike WM",
   "description": "I3 Like Tiling Window Manager for Gnome",
   "uuid": "aerospike@lucaso.io",
   "settings-schema": "org.gnome.shell.extensions.aerospike",
@@ -9,5 +9,5 @@
     "50"
   ],
   "gettext-domain": "aerospike@lucaso.io",
-  "url": "https://gitea.chaosdev.gay/lucasoskorep/aerospike@lucaso.io"
+  "url": "https://github.com/lucasoskorep/aerospike-gnome"
 }
