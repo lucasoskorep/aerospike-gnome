@@ -10,14 +10,15 @@
     "target": "ES2022",
     "lib": [
       "ES2022"
-    ],
+    ]
   },
   "include": [
     "ambient.d.ts",
+    "types/**/*.d.ts",
     "prefs.ts",
     "src/**/*"
   ],
   "files": [
     "extension.ts"
-  ],
+  ]
 }

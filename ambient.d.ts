@@ -1,11 +1,13 @@
-import "@girs/gjs";
+import "@girs/gjs/ambient";
 import "@girs/gjs/dom";
-import "@girs/gnome-shell/ambient";
-import "@girs/gnome-shell/extensions/global";
-
-// Extend Meta.Window with our custom property
-declare namespace Meta {
-    interface Window {
-        _aerospikeData?: any;
-    }
-}
+import "@girs/glib-2.0/ambient";
+import "@girs/gio-2.0/ambient";
+import "@girs/gobject-2.0/ambient";
+import "@girs/gtk-4.0/ambient";
+import "@girs/gdk-4.0/ambient";
+import "@girs/adw-1/ambient";
+import "@girs/pango-1.0/ambient";
+import "@girs/clutter-51/ambient";
+import "@girs/st-51/ambient";
+import "@girs/meta-51/ambient";
+import "@girs/shell-51/ambient";

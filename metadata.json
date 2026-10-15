@@ -6,7 +6,8 @@
   "shell-version": [
     "48",
     "49",
-    "50"
+    "50",
+    "51"
   ],
   "gettext-domain": "aerospike@lucaso.io",
   "url": "https://github.com/lucasoskorep/aerospike-gnome"

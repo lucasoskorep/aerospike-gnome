@@ -21,7 +21,9 @@ export class TabBar {
         this._onTabClicked = onTabClicked;
         this._bar = new St.BoxLayout({
             style_class: 'aerospike-tab-bar',
-            vertical: false,
+            // `vertical` was removed from St widgets in GNOME Shell 51 (deprecated
+            // in 48); `orientation` is its replacement and exists in 48 and later.
+            orientation: Clutter.Orientation.HORIZONTAL,
             reactive: true,
             can_focus: false,
             track_hover: false,
