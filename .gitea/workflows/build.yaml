@@ -18,8 +18,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Install mise
+        run: |
+          curl -fsSL https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Install pnpm and TypeScript
-        run: npm install -g pnpm typescript@5.8.3
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mise trust
+          mise install pnpm
+          mise reshim
+          echo "$HOME/.local/share/mise/shims" >> "$GITHUB_PATH"
+          npm install -g typescript@5.8.3
 
       - name: Install just
         run: |
