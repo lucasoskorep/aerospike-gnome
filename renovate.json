@@ -11,8 +11,7 @@
     {
       "matchPackageNames": ["typescript"],
       "matchUpdateTypes": ["major"],
-      "enabled": false,
-      "description": "TypeScript 7 drops the legacy JS compiler API; ts-jest 29 still needs it. Re-enable when ts-jest supports TS7 (or the suite moves to @typescript/native)."
+      "enabled": false
     }
   ]
 }
