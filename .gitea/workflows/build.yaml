@@ -26,7 +26,6 @@ jobs:
           mise install pnpm
           mise reshim
           echo "$HOME/.local/share/mise/shims" >> "$GITHUB_PATH"
-          npm install -g typescript@5.8.3
 
       - name: Install just
         run: |
